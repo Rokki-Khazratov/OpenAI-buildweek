@@ -1,0 +1,30 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies and virtual environments
+node_modules/
+.venv/
+venv/
+
+# Build and framework output
+.next/
+dist/
+build/
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+
+# Logs and local runtime data
+*.log
+tmp/
+data/
