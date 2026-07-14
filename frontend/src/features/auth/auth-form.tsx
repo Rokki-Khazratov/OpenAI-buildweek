@@ -2,22 +2,39 @@
 
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const isRegister = mode === "register";
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    window.setTimeout(() => router.push("/home"), 420);
+    setError(null);
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch(`/api/auth/${isRegister ? "register" : "login"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.get("name"),
+          email: form.get("email"),
+          password: form.get("password"),
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Authentication failed");
+      window.location.replace("/subjects");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Authentication failed");
+      setPending(false);
+    }
   }
 
   return (
@@ -38,6 +55,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
         </Field>
         {!isRegister && <div className="-mt-2 text-right"><button type="button" className="text-xs font-semibold text-signal">Forgot password?</button></div>}
+        {error && <p role="alert" className="rounded-[9px] border border-danger/30 bg-red-50 px-3.5 py-3 text-sm text-danger">{error}</p>}
         <Button type="submit" disabled={pending} className="mt-1 min-h-11 w-full">
           {pending ? "Opening workspace…" : isRegister ? "Create account" : "Sign in"}
           {!pending && <ArrowRight size={16} />}
