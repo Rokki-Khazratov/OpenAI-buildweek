@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY backend/pyproject.toml ./pyproject.toml
+COPY backend/alembic.ini ./alembic.ini
 COPY backend/api ./api
 
 RUN pip install --upgrade pip && pip install .
