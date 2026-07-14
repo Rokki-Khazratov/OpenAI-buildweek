@@ -11,5 +11,5 @@ export default function EditSubjectPage() {
   const { subjects } = useDemo();
   const subject = subjects.find((item) => item.id === params.subjectId);
   if (!subject) return <div className="p-10 text-sm text-muted">Subject not found.</div>;
-  return <PageFrame eyebrow="Subjects / Edit" title={`Edit ${subject.title}`} description="Changes apply to this subject container and its shared metadata."><SubjectForm subject={subject} /></PageFrame>;
+  return <PageFrame eyebrow="Subjects / Edit" title={`Edit ${subject.title}`}><SubjectForm subject={subject} /></PageFrame>;
 }

@@ -19,13 +19,13 @@ export function FeaturePreview({
   soon?: boolean;
 }) {
   return (
-    <PageFrame eyebrow={eyebrow} title={title} description={description} action={soon ? <StatusPill>Soon</StatusPill> : undefined}>
+    <PageFrame eyebrow={eyebrow} title={title} action={soon ? <StatusPill>Soon</StatusPill> : undefined}>
       <section className={`overflow-hidden rounded-[16px] border border-line ${soon ? "bg-surface-raised" : "bg-white"}`}>
         <div className="grid min-h-[220px] place-items-center border-b border-line p-8 text-center">
           <div className="max-w-xl">
             <span className={`mx-auto grid size-12 place-items-center rounded-[12px] ${soon ? "bg-[#ebebed] text-muted" : "bg-signal-soft text-signal"}`}><Icon size={21} strokeWidth={1.7} /></span>
             <h2 className="mt-5 text-xl font-semibold tracking-[-0.025em]">{soon ? "The data layer comes next." : "The product surface is mapped."}</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">{soon ? "This route is intentionally quiet until the DS worker can return explainable, confidence-aware insights." : "This checkpoint establishes navigation and content structure. The complete workflow follows after Subjects CRUD."}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
           </div>
         </div>
         <div className="grid md:grid-cols-3">

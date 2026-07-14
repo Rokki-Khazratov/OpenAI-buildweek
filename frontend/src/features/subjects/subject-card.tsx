@@ -13,7 +13,7 @@ export function SubjectCard({ subject }: { subject: Subject }) {
   return (
     <Link href={`/subjects/${subject.id}`} className="group flex min-h-[250px] flex-col rounded-[14px] border border-line bg-white p-5 transition duration-200 ease-exam hover:-translate-y-0.5 hover:border-[#cfcfd5] hover:shadow-[0_16px_36px_rgba(13,13,13,0.06)] sm:p-6">
       <div className="flex items-start justify-between">
-        <span className="grid size-10 place-items-center rounded-[10px] bg-ink text-sm font-semibold text-white">{subject.courseCode.slice(0, 2).toUpperCase()}</span>
+        <span className="grid size-10 place-items-center rounded-[10px] bg-contrast text-sm font-semibold text-contrast-ink">{subject.courseCode.slice(0, 2).toUpperCase()}</span>
         <button className="grid size-9 place-items-center rounded-[8px] text-muted opacity-0 transition hover:bg-surface group-hover:opacity-100" aria-label={`More options for ${subject.title}`} onClick={(event) => event.preventDefault()}><MoreHorizontal size={18} /></button>
       </div>
       <div className="mt-7">

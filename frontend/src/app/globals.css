@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
   --canvas: #ffffff;
@@ -12,6 +13,24 @@
   --success: #147a53;
   --warning: #9a6700;
   --danger: #c9362b;
+  --contrast: #0d0d0d;
+  --contrast-ink: #ffffff;
+}
+
+[data-theme="dark"] {
+  --canvas: #0b0b0c;
+  --surface: #171719;
+  --surface-raised: #111113;
+  --ink: #f2f2f3;
+  --muted: #9b9ba3;
+  --line: #2a2a2e;
+  --signal: #7373ff;
+  --signal-soft: #202043;
+  --success: #52c895;
+  --warning: #e7b65b;
+  --danger: #ff7d73;
+  --contrast: #f2f2f3;
+  --contrast-ink: #111113;
 }
 
 @theme inline {
@@ -26,6 +45,8 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-contrast: var(--contrast);
+  --color-contrast-ink: var(--contrast-ink);
   --font-sans: "Instrument Sans Variable", "Inter", "SF Pro Text", ui-sans-serif, system-ui,
     sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -39,6 +60,11 @@
 
 html {
   background: var(--canvas);
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -49,6 +75,18 @@ body {
   font-family: "Instrument Sans Variable", "Inter", "SF Pro Text", ui-sans-serif, system-ui,
     sans-serif;
   text-rendering: optimizeLegibility;
+}
+
+[data-theme="dark"] .bg-white {
+  background-color: var(--surface-raised);
+}
+
+[data-theme="dark"] .bg-red-50 {
+  background-color: rgb(127 29 29 / 0.18);
+}
+
+[data-theme="dark"] .shadow-float {
+  box-shadow: 0 22px 60px rgb(0 0 0 / 0.42);
 }
 
 button,

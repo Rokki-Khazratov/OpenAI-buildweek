@@ -4,8 +4,8 @@ import { Brand } from "@/components/layout/brand";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="grid min-h-dvh bg-white lg:grid-cols-[minmax(0,1fr)_minmax(480px,0.82fr)]">
-      <section className="relative hidden overflow-hidden bg-ink p-10 text-white lg:flex lg:flex-col">
+    <main className="grid min-h-dvh bg-canvas lg:grid-cols-[minmax(0,1fr)_minmax(480px,0.82fr)]">
+      <section className="relative hidden overflow-hidden bg-[#0d0d0d] p-10 text-white lg:flex lg:flex-col">
         <Brand />
         <div className="my-auto max-w-[580px]">
           <p className="mb-5 text-xs font-semibold uppercase tracking-[0.14em] text-white/48">Exam fidelity, not generic practice</p>

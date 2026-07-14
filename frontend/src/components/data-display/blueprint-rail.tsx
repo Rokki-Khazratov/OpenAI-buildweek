@@ -20,7 +20,7 @@ export function BlueprintRail() {
         {parts.map((part, index) => (
           <div key={part.code} className={`relative p-5 ${index < parts.length - 1 ? "border-b border-line md:border-b-0 md:border-r" : ""}`}>
             <div className="mb-8 flex items-start justify-between">
-              <span className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${part.ready ? "bg-ink text-white" : "border border-dashed border-[#b9b9c0] text-muted"}`}>
+              <span className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${part.ready ? "bg-contrast text-contrast-ink" : "border border-dashed border-[#b9b9c0] text-muted"}`}>
                 {part.ready ? <Check size={14} strokeWidth={2.2} /> : part.code}
               </span>
               <span className="font-mono text-[11px] text-muted">{part.weight}</span>

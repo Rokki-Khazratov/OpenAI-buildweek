@@ -19,7 +19,7 @@ export default function HomePage() {
       </header>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.65fr)]">
-        <section className="overflow-hidden rounded-[16px] bg-ink p-6 text-white sm:p-8">
+        <section className="overflow-hidden rounded-[16px] bg-[#0d0d0d] p-6 text-white sm:p-8">
           <div className="flex items-center justify-between">
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold">Continue preparation</span>
             <span className="font-mono text-xs text-white/55">PHY-401</span>

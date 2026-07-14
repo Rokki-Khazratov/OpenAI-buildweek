@@ -14,7 +14,7 @@ export default function SubjectsPage() {
   const visible = useMemo(() => subjects.filter((subject) => `${subject.title} ${subject.courseCode} ${subject.university}`.toLowerCase().includes(query.toLowerCase())), [query, subjects]);
 
   return (
-    <PageFrame eyebrow="Your library" title="Subjects" description="Each subject keeps its exams, context, mocks and classes together." action={<Link href="/subjects/new" className="inline-flex min-h-10 items-center gap-2 rounded-[9px] bg-signal px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(46,46,255,0.18)]"><Plus size={16} /> New subject</Link>}>
+    <PageFrame eyebrow={`${subjects.length} subjects · ${subjects.reduce((total, subject) => total + subject.examCount, 0)} exams`} title="Subjects" action={<Link href="/subjects/new" className="inline-flex min-h-10 items-center gap-2 rounded-[9px] bg-signal px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(46,46,255,0.18)]"><Plus size={16} /> New subject</Link>}>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <label className="flex min-h-10 flex-1 items-center gap-2.5 rounded-[9px] border border-line bg-white px-3.5 text-sm text-muted sm:max-w-[420px]"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search subjects" className="w-full bg-transparent text-ink outline-none placeholder:text-muted" /></label>
         <button className="inline-flex min-h-10 items-center gap-2 rounded-[9px] border border-line bg-white px-3 text-sm font-medium text-muted hover:bg-surface"><SlidersHorizontal size={15} /> Filter</button>
