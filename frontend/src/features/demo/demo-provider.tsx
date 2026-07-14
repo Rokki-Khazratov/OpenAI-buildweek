@@ -6,6 +6,22 @@ import type { Subject, SubjectInput } from "@/features/subjects/types";
 
 const STORAGE_KEY = "examtwin.visual.subjects.v1";
 
+function readSavedSubjects() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveSubjects(subjects: Subject[]) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(subjects));
+  } catch {
+    // The visual demo can continue in memory without browser storage.
+  }
+}
+
 const initialSubjects: Subject[] = [
   {
     id: "quantum-physics",
@@ -69,19 +85,23 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
+      const saved = readSavedSubjects();
       if (!saved) return;
       try {
         setSubjects(JSON.parse(saved) as Subject[]);
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        try {
+          window.localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // Ignore unavailable browser storage and use seeded subjects.
+        }
       }
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   function replaceSubjects(next: Subject[]) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    saveSubjects(next);
     setSubjects(next);
   }
 
