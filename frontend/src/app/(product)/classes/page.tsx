@@ -1,0 +1,3 @@
+import { UsersRound } from "lucide-react";
+import { FeaturePreview } from "@/components/feedback/feature-preview";
+export default function ClassesPage() { return <FeaturePreview eyebrow="Study together" title="Classes" description="Invite friends to an entire Subject or select the exact Exams a class should share." icon={UsersRound} items={[{ title: "Choose scope", text: "Share every exam in a Subject or only selected exam definitions." }, { title: "Invite", text: "Find people by username or send an email invitation." }, { title: "Compare", text: "Use privacy-aware activity and an opt-in leaderboard." }]} />; }

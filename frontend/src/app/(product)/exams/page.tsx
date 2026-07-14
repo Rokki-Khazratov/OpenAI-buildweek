@@ -1,0 +1,3 @@
+import { GraduationCap } from "lucide-react";
+import { FeaturePreview } from "@/components/feedback/feature-preview";
+export default function ExamsPage() { return <FeaturePreview eyebrow="Exam workspace" title="Exams" description="Detailed exam definitions, blueprints, source evidence and generated mock history." icon={GraduationCap} items={[{ title: "Create", text: "A resumable setup flow for context, rules, language and exam structure." }, { title: "Verify", text: "Review every extracted part, timing rule, score and cited source." }, { title: "Simulate", text: "Generate faithful mocks and follow each job from queued to ready." }]} />; }

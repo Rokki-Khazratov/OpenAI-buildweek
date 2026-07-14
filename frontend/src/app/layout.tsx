@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/instrument-sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ExamTwin",
-  description: "Student-owned adaptive exam preparation.",
+  title: {
+    default: "ExamTwin",
+    template: "%s · ExamTwin",
+  },
+  description: "Reconstruct the real exam. Practice with intent.",
 };
 
 export default function RootLayout({
@@ -13,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

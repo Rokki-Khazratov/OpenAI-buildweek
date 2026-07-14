@@ -1,0 +1,3 @@
+import { BarChart3 } from "lucide-react";
+import { FeaturePreview } from "@/components/feedback/feature-preview";
+export default function StatisticsPage() { return <FeaturePreview eyebrow="Evidence over time" title="Statistics" description="Progress, mastery and timing across subjects and repeated mock exams." icon={BarChart3} items={[{ title: "Trajectory", text: "See score and confidence move across repeated attempts." }, { title: "Skills", text: "Separate confirmed gaps from weak signals with evidence counts." }, { title: "Timing", text: "Compare time allocation to the real blueprint and identify pressure points." }]} />; }
