@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+.python-version
+
+# Local planning and research notes
+docs/
 
 # Dependencies and virtual environments
 node_modules/
@@ -18,6 +22,7 @@ coverage/
 .ruff_cache/
 __pycache__/
 *.py[cod]
+*.egg-info/
 
 # Editors and operating systems
 .DS_Store
