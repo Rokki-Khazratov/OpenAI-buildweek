@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     jwt_audience: str = "openai-buildweek-web"
     access_token_minutes: int = Field(default=15, ge=1, le=120)
     refresh_token_days: int = Field(default=30, ge=1, le=90)
+    cors_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ]
+    )
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> Self:

@@ -1,9 +1,9 @@
 # Backend
 
-The backend currently implements Phase 0–2 and the workspace portion of Phase 3: application
+The backend currently implements Phase 0–2 and the subject/exam/class foundation of Phase 3: application
 startup, structured logging, request IDs, health endpoints, asynchronous PostgreSQL sessions,
-initial migrations, authentication, user profile operations, and ownership-protected workspace
-CRUD.
+initial migrations, authentication, user profile operations, ownership-protected Subject CRUD,
+multiple Exams per Subject, and Classes scoped to an entire Subject or selected Exams.
 
 Artifact APIs, background workers, and AI features are not implemented yet.
 
@@ -16,6 +16,14 @@ Artifact APIs, background workers, and AI features are not implemented yet.
 - `GET/PATCH /api/v1/me`
 - `POST/GET /api/v1/workspaces`
 - `GET/PATCH/DELETE /api/v1/workspaces/{workspace_id}`
+- `POST/GET /api/v1/subjects`
+- `GET/PATCH/DELETE /api/v1/subjects/{subject_id}`
+- `POST/GET /api/v1/subjects/{subject_id}/exams`
+- `GET/PATCH/DELETE /api/v1/exams/{exam_id}`
+- `POST/GET /api/v1/subjects/{subject_id}/classes`
+- `GET/PATCH/DELETE /api/v1/classes/{class_id}`
+
+`/workspaces` remains a compatibility contract. New product surfaces use `/subjects`.
 
 ## Local setup
 

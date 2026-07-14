@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.api.router import api_router
@@ -40,6 +41,13 @@ def create_app(
         redoc_url="/redoc" if resolved_settings.docs_enabled else None,
         openapi_url="/openapi.json" if resolved_settings.docs_enabled else None,
         lifespan=lifespan,
+    )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=resolved_settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
     application.add_middleware(RequestIdMiddleware)
     application.include_router(api_router, prefix=resolved_settings.api_prefix)
