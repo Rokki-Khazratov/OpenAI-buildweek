@@ -17,3 +17,27 @@ def test_main_crud_paths_are_documented(client: TestClient) -> None:
         "patch",
         "delete",
     }
+    assert set(schema["paths"]["/api/v1/subjects"]) >= {"get", "post"}
+    assert set(schema["paths"]["/api/v1/subjects/{subject_id}"]) >= {
+        "get",
+        "patch",
+        "delete",
+    }
+    assert set(schema["paths"]["/api/v1/subjects/{subject_id}/exams"]) >= {
+        "get",
+        "post",
+    }
+    assert set(schema["paths"]["/api/v1/exams/{exam_id}"]) >= {
+        "get",
+        "patch",
+        "delete",
+    }
+    assert set(schema["paths"]["/api/v1/subjects/{subject_id}/classes"]) >= {
+        "get",
+        "post",
+    }
+    assert set(schema["paths"]["/api/v1/classes/{class_id}"]) >= {
+        "get",
+        "patch",
+        "delete",
+    }

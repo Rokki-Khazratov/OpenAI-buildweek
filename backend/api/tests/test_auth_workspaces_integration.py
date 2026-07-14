@@ -35,7 +35,8 @@ async def integration_client() -> AsyncIterator[AsyncClient]:
         async with database.engine.begin() as connection:
             await connection.execute(
                 text(
-                    "TRUNCATE audit_events, workspace_members, workspaces, "
+                    "TRUNCATE audit_events, class_exams, classes, exams, "
+                    "workspace_members, workspaces, "
                     "refresh_tokens, users RESTART IDENTITY CASCADE"
                 )
             )
@@ -192,3 +193,61 @@ async def test_workspace_crud_and_cross_user_isolation(integration_client: Async
         headers=owner_headers,
     )
     assert missing.status_code == 404
+
+
+async def test_subject_exam_and_class_scope(integration_client: AsyncClient) -> None:
+    await register(integration_client, "scope-owner@example.com", display_name="Scope Owner")
+    tokens = await login(integration_client, "scope-owner@example.com")
+    headers = bearer(tokens)
+
+    subject = await integration_client.post(
+        "/api/v1/subjects",
+        headers=headers,
+        json={"title": "Algorithms", "course_code": "CS-301"},
+    )
+    assert subject.status_code == 201, subject.text
+    subject_id = subject.json()["id"]
+
+    exam_ids: list[str] = []
+    for title in ("Midterm", "Final"):
+        exam = await integration_client.post(
+            f"/api/v1/subjects/{subject_id}/exams",
+            headers=headers,
+            json={"title": title, "exam_type": "written", "language": "en"},
+        )
+        assert exam.status_code == 201, exam.text
+        assert exam.json()["subject_id"] == subject_id
+        exam_ids.append(exam.json()["id"])
+
+    all_subject = await integration_client.post(
+        f"/api/v1/subjects/{subject_id}/classes",
+        headers=headers,
+        json={"name": "Entire subject", "exam_scope": "subject"},
+    )
+    assert all_subject.status_code == 201, all_subject.text
+    assert all_subject.json()["exam_ids"] == []
+
+    selected = await integration_client.post(
+        f"/api/v1/subjects/{subject_id}/classes",
+        headers=headers,
+        json={
+            "name": "Final group",
+            "exam_scope": "selected_exams",
+            "exam_ids": [exam_ids[1]],
+        },
+    )
+    assert selected.status_code == 201, selected.text
+    assert selected.json()["exam_ids"] == [exam_ids[1]]
+
+    invalid = await integration_client.post(
+        f"/api/v1/subjects/{subject_id}/classes",
+        headers=headers,
+        json={"name": "Invalid", "exam_scope": "selected_exams", "exam_ids": []},
+    )
+    assert invalid.status_code == 422
+
+    classes = await integration_client.get(
+        f"/api/v1/subjects/{subject_id}/classes", headers=headers
+    )
+    assert classes.status_code == 200
+    assert classes.json()["total"] == 2
