@@ -12,7 +12,7 @@ export default function ClassesPage() {
 
   return (
     <PageFrame eyebrow="Study together" title="Classes" description="Create focused study groups around an entire subject or selected exams." action={<Link href="/classes/new" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] bg-signal px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(46,46,255,0.18)]"><Plus size={16} /> New class</Link>}>
-      {classes.length ? <div className="grid gap-4 lg:grid-cols-2">{classes.map((studyClass) => {
+      {classes.length ? <div className="grid gap-4 xl:grid-cols-2">{classes.map((studyClass) => {
         const subject = subjects.find((item) => item.id === studyClass.subjectId);
         return <Link key={studyClass.id} href={`/classes/${studyClass.id}`} className="group rounded-[14px] border border-line bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#c9c9d0] hover:shadow-soft sm:p-6">
           <div className="flex items-start justify-between gap-4"><span className="grid size-11 place-items-center rounded-[11px] bg-signal-soft text-signal"><UsersRound size={20} /></span><StatusPill tone={studyClass.examScope === "subject" ? "signal" : "neutral"}>{studyClass.examScope === "subject" ? "Entire subject" : `${studyClass.examIds.length} exam${studyClass.examIds.length === 1 ? "" : "s"}`}</StatusPill></div>
