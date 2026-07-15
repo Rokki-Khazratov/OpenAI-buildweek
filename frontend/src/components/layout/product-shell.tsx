@@ -26,10 +26,10 @@ export function ProductShell({ children }: { children: ReactNode }) {
         </div>
 
         <Link
-          href="/subjects/new"
+          href="/exams/new"
           className="mb-5 flex min-h-10 items-center justify-between rounded-[9px] bg-contrast px-3.5 text-sm font-semibold text-contrast-ink transition hover:opacity-90"
         >
-          New subject
+          New exam
           <Plus size={17} strokeWidth={1.8} />
         </Link>
 
