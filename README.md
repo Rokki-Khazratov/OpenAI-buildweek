@@ -33,6 +33,8 @@ The UI never presents its prototype scoring as production AI output. The next in
 
 ## Product preview
 
+All product images below were captured from the running local application in the native browser at a laptop/desktop responsive breakpoint. Each screenshot includes the complete page width; no interface sections are cropped or reconstructed.
+
 ### Dashboard
 
 The home view keeps the next preparation action prominent and shows the student’s current exam context.
