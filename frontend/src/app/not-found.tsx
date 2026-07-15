@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound() { return <main className="grid min-h-dvh place-items-center bg-canvas p-6 text-center"><div><p className="font-mono text-xs text-muted">404</p><h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em]">This page is outside the blueprint.</h1><p className="mt-3 text-sm text-muted">The route may have moved or never existed.</p><Link href="/home" className="mt-6 inline-flex rounded-[9px] bg-contrast px-4 py-2.5 text-sm font-semibold text-contrast-ink">Return home</Link></div></main>; }

@@ -1,0 +1,4 @@
+"use client";
+import { RotateCcw } from "lucide-react";
+import { useEffect } from "react";
+export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) { useEffect(() => { console.error(error); }, [error]); return <main className="grid min-h-dvh place-items-center p-6 text-center"><div><p className="text-xs font-semibold uppercase tracking-[0.13em] text-danger">Something stopped</p><h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">The workspace could not load.</h1><p className="mt-3 text-sm text-muted">Try the request again. Your local visual data is preserved.</p><button onClick={reset} className="mt-6 inline-flex min-h-10 items-center gap-2 rounded-[9px] bg-contrast px-4 text-sm font-semibold text-contrast-ink"><RotateCcw size={15} /> Try again</button></div></main>; }
