@@ -7,6 +7,9 @@ const publicRoutes = new Set(["/", "/login", "/register"]);
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return NextResponse.next();
+  }
   const authenticated = request.cookies.has(ACCESS_COOKIE) || request.cookies.has(REFRESH_COOKIE);
   if (!authenticated && !publicRoutes.has(path)) {
     const login = new URL("/login", request.url);
