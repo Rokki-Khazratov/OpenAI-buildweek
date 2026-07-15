@@ -4,6 +4,16 @@ Next.js App Router frontend for ExamTwin, built with React, TypeScript, Tailwind
 default Next.js tooling. Vite is intentionally not included: Next.js supplies the build and dev
 toolchain for this application.
 
+## Current interactive scope
+
+- Subjects are lightweight categories for organizing Exams and Classes.
+- Exams own their context data, blueprint, generation scenario, rules, attempt history, and statistics.
+- Exam CRUD, the five-step creation flow, focused mock simulation, local autosave, result archive,
+  and low-confidence statistics are implemented as a local-first visual prototype.
+- Subject, Exam, Class, and Attempt demo data persists in browser storage.
+- Real artifact processing, OpenAI generation/evaluation, and analytics remain backend/worker
+  integrations; the UI does not claim those prototype results are production AI output.
+
 ## Structure
 
 The structure follows the useful parts of the Offerfly layout while adapting them to Next.js:
