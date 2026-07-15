@@ -4,7 +4,9 @@
 
 ## Status
 
-This repository is currently in the **planning and project-setup phase**. The initial structure and product scope are documented, but no application code has been written yet.
+This repository is in active development. The backend foundation, authentication lifecycle,
+current-user profile, and ownership-protected workspace CRUD are implemented with PostgreSQL
+integration tests. Artifact processing, background workers, and AI flows are not implemented yet.
 
 ## The problem
 
@@ -57,20 +59,13 @@ The MVP is planned as one web service, one API service, one worker, PostgreSQL, 
 
 ```text
 .
-├── apps/
-│   └── web/              # Planned Next.js frontend
-├── services/
-│   ├── api/              # Planned FastAPI application
-│   └── worker/           # Planned background-job worker
-├── packages/
-│   └── shared/           # Planned shared contracts and configuration
-├── infra/                # Planned containers, deployment, and CI assets
-├── docs/                 # Product, architecture, API, and demo documentation
-├── tests/                # Planned cross-service and end-to-end tests
+├── backend/               # FastAPI API, worker placeholder, migrations and local runtime
+├── frontend/              # Next.js, React, TypeScript and Tailwind application
+├── materials/             # Screenshots and other submission assets
 └── deep-research-report.md
 ```
 
-Empty directories contain `.gitkeep` placeholders only. They do not contain implementation code.
+`docs/` remains a local, Git-ignored working area for evolving planning notes.
 
 ## Product principles
 
@@ -95,9 +90,11 @@ The intended demo is a single short journey: upload an exam and rubric, extract 
 - **M6:** library cloning and class dashboard
 - **M7:** deployment, judge access, README updates, demo account, and video
 
-## Research and specification
+## Research
 
-The detailed product research, comparisons, domain model, proposed REST API, analytics design, security considerations, and sprint plan are available in [deep-research-report.md](deep-research-report.md).
+The original research, comparisons, detailed domain proposals, and supporting rationale are in
+[deep-research-report.md](deep-research-report.md). Working specifications are kept locally in
+the Git-ignored `docs/` directory.
 
 ## Codex and OpenAI usage
 
@@ -107,7 +104,9 @@ The final submission will document the implemented model flows, prompts, safegua
 
 ## Local development
 
-There is no runnable application yet. Setup and run commands will be added after the initial implementation and must remain reproducible from a clean clone.
+Backend Phase 0–2 and workspace CRUD are implemented. See the
+[backend setup guide](backend/api/README.md) and [frontend guide](frontend/README.md) for local
+commands. Artifact endpoints, workers, and AI flows have not been implemented yet.
 
 ## License
 
