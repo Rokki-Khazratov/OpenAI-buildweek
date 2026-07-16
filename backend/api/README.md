@@ -1,12 +1,13 @@
 # Backend
 
-The backend implements the P0 product loop: application startup, structured logging, request IDs,
+The backend implements the P0 product loop plus the P1 artifact-ingestion foundation: application startup, structured logging, request IDs,
 health endpoints, asynchronous PostgreSQL sessions, migrations, authentication, user profile
 operations, ownership-protected Subject CRUD, multiple Exams per Subject, Classes scoped to an
 entire Subject or selected Exams, durable Exam configuration, deterministic mock generation,
-attempt autosave/submission, result history, and basic statistics.
+attempt autosave/submission, result history, basic statistics, private direct-to-object-storage
+uploads, durable background processing, and deterministic PDF/DOCX/TXT parsing and chunking.
 
-Artifact ingestion, background workers, and AI/Data Science features are intentionally deferred.
+AI generation, embeddings, OCR, and Data Science features remain intentionally deferred.
 
 ## Implemented API
 
@@ -31,6 +32,13 @@ Artifact ingestion, background workers, and AI/Data Science features are intenti
 - `POST /api/v1/attempts/{attempt_id}/submit`
 - `GET /api/v1/exams/{exam_id}/attempts`
 - `GET /api/v1/exams/{exam_id}/statistics`
+- `POST /api/v1/exams/{exam_id}/artifacts/uploads`
+- `POST /api/v1/artifacts/{artifact_id}/complete`
+- `GET /api/v1/exams/{exam_id}/artifacts`
+- `GET/DELETE /api/v1/artifacts/{artifact_id}`
+- `GET /api/v1/artifacts/{artifact_id}/download`
+- `GET /api/v1/artifacts/{artifact_id}/content-summary`
+- `POST /api/v1/artifacts/{artifact_id}/retry`
 
 `/workspaces` remains a compatibility contract. New product surfaces use `/subjects`.
 
@@ -45,9 +53,11 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 cp .env.example .env
-docker compose -f compose.yaml up -d postgres redis
+docker compose -f compose.yaml up -d postgres redis minio minio-init
 alembic upgrade head
 uvicorn app.main:app --reload
+# In a second terminal:
+dramatiq app.modules.artifacts.tasks
 ```
 
 Health endpoints:
@@ -64,3 +74,12 @@ mypy
 pytest
 alembic check
 ```
+
+With the full Compose stack running, the real storage/queue smoke test is:
+
+```bash
+node ../scripts/p1-artifact-smoke.mjs
+```
+
+For a rich local frontend workspace, run `node ../scripts/seed-local-demo.mjs`.
+It creates the local-only account `alex.morgan@examtwin.app` with password `exam1234`.
