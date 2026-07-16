@@ -16,9 +16,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Brand } from "@/components/layout/brand";
 import { Button } from "@/components/ui/button";
+import { generateMock, getAttempt, saveAttemptResponse, startAttempt, submitAttempt, type AttemptDto } from "@/features/attempts/api";
 import { useDemo } from "@/features/demo/demo-provider";
 import type { ExamAttempt } from "@/features/exams/types";
-import { apiFetch } from "@/lib/api/browser";
 
 type Question = {
   id: string;
@@ -27,39 +27,6 @@ type Question = {
   prompt: string;
   points: number;
   type: string;
-};
-type MockDto = {
-  id: string;
-  duration_minutes: number;
-  max_score: number;
-  questions: Array<{
-    id: string;
-    section_id: string;
-    position: number;
-    prompt: string;
-    points: number;
-    question_type: string;
-  }>;
-};
-type AttemptDto = {
-  id: string;
-  mock_exam: MockDto;
-  status: "in_progress" | "evaluated";
-  started_at: string;
-  responses: Array<{
-    question_id: string;
-    answer: string;
-    flagged: boolean;
-    version: number;
-  }>;
-};
-type ResultDto = {
-  score: number;
-  max_score: number;
-  percentage: number;
-  duration_seconds: number;
-  submitted_at: string;
-  feedback: string;
 };
 
 export function ExamRun({ examId }: { examId: string }) {
@@ -147,7 +114,7 @@ export function ExamRun({ examId }: { examId: string }) {
       `examtwin.activeAttempt.${examId}`,
     );
     if (!savedAttempt) return;
-    void apiFetch<AttemptDto>(`/attempts/${savedAttempt}`)
+    void getAttempt(savedAttempt)
       .then(hydrateAttempt)
       .catch(() =>
         window.localStorage.removeItem(`examtwin.activeAttempt.${examId}`),
@@ -169,13 +136,7 @@ export function ExamRun({ examId }: { examId: string }) {
       setSaveState("saving");
       void Promise.all(
         Object.entries(answers).map(([questionId, answer]) =>
-          apiFetch(`/attempts/${attemptId}/responses/${questionId}`, {
-            method: "PUT",
-            body: JSON.stringify({
-              answer,
-              flagged: flagged.includes(questionId),
-            }),
-          }),
+          saveAttemptResponse(attemptId, questionId, answer, flagged.includes(questionId)),
         ),
       )
         .then(() => setSaveState("saved"))
@@ -211,17 +172,8 @@ export function ExamRun({ examId }: { examId: string }) {
     setError(null);
     if (!demoMode) {
       try {
-        const mock = await apiFetch<MockDto>(`/exams/${exam.id}/mocks`, {
-          method: "POST",
-          headers: { "Idempotency-Key": crypto.randomUUID() },
-        });
-        const attempt = await apiFetch<AttemptDto>(
-          `/mocks/${mock.id}/attempts`,
-          {
-            method: "POST",
-            headers: { "Idempotency-Key": crypto.randomUUID() },
-          },
-        );
+        const mock = await generateMock(exam.id);
+        const attempt = await startAttempt(mock.id);
         window.localStorage.setItem(
           `examtwin.activeAttempt.${exam.id}`,
           attempt.id,
@@ -251,10 +203,7 @@ export function ExamRun({ examId }: { examId: string }) {
       setSubmitting(true);
       setError(null);
       try {
-        const saved = await apiFetch<ResultDto>(
-          `/attempts/${attemptId}/submit`,
-          { method: "POST", headers: { "Idempotency-Key": attemptId } },
-        );
+        const saved = await submitAttempt(attemptId);
         const attempt: ExamAttempt = {
           id: attemptId,
           examId: exam.id,

@@ -2,10 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
+import { listArtifacts } from "@/features/artifacts/api";
+import type { Artifact } from "@/features/artifacts/types";
+import { createClass, deleteClass, listClasses, updateClass as updateClassApi, type ClassDto } from "@/features/classes/api";
 import type { StudyClass, StudyClassInput } from "@/features/classes/types";
+import { createExam, deleteExam, listExamAttempts, listExams, updateExam as updateExamApi, type AttemptSummaryDto, type ExamDto } from "@/features/exams/api";
 import type { Exam, ExamAttempt, ExamInput } from "@/features/exams/types";
+import { createSubject, deleteSubject, listSubjects, updateSubject as updateSubjectApi, type SubjectDto } from "@/features/subjects/api";
 import type { Subject, SubjectInput } from "@/features/subjects/types";
-import { apiFetch } from "@/lib/api/browser";
 
 const SUBJECTS_STORAGE_KEY = "examtwin.visual.subjects.v1";
 const CLASSES_STORAGE_KEY = "examtwin.visual.classes.v1";
@@ -163,6 +167,7 @@ type DemoContextValue = {
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
+  refreshExamArtifacts: (examId: string) => Promise<void>;
   addSubject: (input: SubjectInput) => Promise<Subject>;
   updateSubject: (id: string, input: SubjectInput) => Promise<Subject>;
   removeSubject: (id: string) => Promise<void>;
@@ -178,12 +183,6 @@ type DemoContextValue = {
 
 const DemoContext = createContext<DemoContextValue | null>(null);
 
-type SubjectDto = { id: string; title: string; university: string | null; course_code: string | null; visibility: Subject["visibility"]; updated_at: string };
-type ExamDto = { id: string; subject_id: string; title: string; description: string | null; exam_type: string | null; language: string; target_date: string | null; status: Exam["status"]; pasted_context: string; sources: Exam["sources"]; blueprint: Exam["blueprint"]; rules: Exam["rules"]; scenario: Exam["scenario"]; configuration_version: number; updated_at: string };
-type ClassDto = { id: string; subject_id: string; name: string; description: string | null; exam_scope: "subject" | "selected_exams"; exam_ids: string[]; created_at: string; updated_at: string };
-type AttemptSummaryDto = { attempt_id: string; exam_id: string; score: number; max_score: number; duration_seconds: number; submitted_at: string; feedback: string };
-type ArtifactDto = { id: string; original_name: string; kind: Exam["sources"][number]["kind"]; size_bytes: number; processing_status: "pending" | "queued" | "processing" | "ready" | "failed" | "deleting" };
-type ListDto<T> = { items: T[]; total: number };
 
 const emptyRules: Exam["rules"] = { durationMinutes: 60, totalPoints: 100, passPercentage: 50, penalty: "No negative marking", allowedMaterials: "Not specified", gradingNotes: "" };
 const emptyScenario: Exam["scenario"] = { mode: "full_exam", difficulty: "matched", instructions: "" };
@@ -192,9 +191,13 @@ function mapSubject(item: SubjectDto): Subject {
   return { id: item.id, title: item.title, university: item.university ?? "", courseCode: item.course_code ?? "", visibility: item.visibility, updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
 }
 
-function mapExam(item: ExamDto, previous?: Exam, attemptItems: AttemptSummaryDto[] = [], artifactItems?: ArtifactDto[]): Exam {
+function mapArtifacts(artifactItems: Artifact[]): Exam["sources"] {
+  return artifactItems.map((artifact) => ({ id: artifact.id, name: artifact.original_name, kind: artifact.kind, size: artifact.size_bytes < 1_000_000 ? `${Math.max(1, Math.round(artifact.size_bytes / 1000))} KB` : `${(artifact.size_bytes / 1_000_000).toFixed(1)} MB`, status: artifact.processing_status === "ready" ? "ready" as const : artifact.processing_status === "failed" ? "needs_review" as const : "processing" as const }));
+}
+
+function mapExam(item: ExamDto, previous?: Exam, attemptItems: AttemptSummaryDto[] = [], artifactItems?: Artifact[]): Exam {
   const attempts = attemptItems.map((attempt) => ({ id: attempt.attempt_id, examId: attempt.exam_id, score: attempt.score, maxScore: attempt.max_score, durationMinutes: Math.max(1, Math.ceil(attempt.duration_seconds / 60)), completedAt: new Date(attempt.submitted_at).toLocaleString("en-GB"), feedback: attempt.feedback, answers: {} }));
-  const sources = artifactItems?.map((artifact) => ({ id: artifact.id, name: artifact.original_name, kind: artifact.kind, size: artifact.size_bytes < 1_000_000 ? `${Math.max(1, Math.round(artifact.size_bytes / 1000))} KB` : `${(artifact.size_bytes / 1_000_000).toFixed(1)} MB`, status: artifact.processing_status === "ready" ? "ready" as const : artifact.processing_status === "failed" ? "needs_review" as const : "processing" as const })) ?? item.sources;
+  const sources = artifactItems ? mapArtifacts(artifactItems) : item.sources;
   return { id: item.id, subjectId: item.subject_id, title: item.title, description: item.description ?? "", examType: item.exam_type ?? "", language: item.language as Exam["language"], targetDate: item.target_date ?? "", status: item.status, pastedContext: item.pasted_context, configurationVersion: item.configuration_version, sources, blueprint: item.blueprint, rules: Object.keys(item.rules).length ? item.rules : emptyRules, scenario: Object.keys(item.scenario).length ? item.scenario : emptyScenario, attempts: attemptItems.length ? attempts : previous?.attempts ?? [], updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
 }
 
@@ -203,18 +206,18 @@ function mapClass(item: ClassDto): StudyClass {
 }
 
 async function fetchRemoteProductData() {
-  const subjectPage = await apiFetch<ListDto<SubjectDto>>("/subjects?limit=100");
+  const subjectPage = await listSubjects();
   const childPages = await Promise.all(subjectPage.items.map(async (subject) => {
     const [examPage, classPage] = await Promise.all([
-      apiFetch<ListDto<ExamDto>>(`/subjects/${subject.id}/exams?limit=100`),
-      apiFetch<ListDto<ClassDto>>(`/subjects/${subject.id}/classes?limit=100`),
+      listExams(subject.id),
+      listClasses(subject.id),
     ]);
     return { exams: examPage.items, classes: classPage.items };
   }));
   const examItems = childPages.flatMap((page) => page.exams);
   const [attemptPages, artifactPages] = await Promise.all([
-    Promise.all(examItems.map((exam) => apiFetch<AttemptSummaryDto[]>(`/exams/${exam.id}/attempts`))),
-    Promise.all(examItems.map((exam) => apiFetch<ListDto<ArtifactDto>>(`/exams/${exam.id}/artifacts`))),
+    Promise.all(examItems.map((exam) => listExamAttempts(exam.id))),
+    Promise.all(examItems.map((exam) => listArtifacts(exam.id))),
   ]);
   return {
     subjects: subjectPage.items.map(mapSubject),
@@ -377,9 +380,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           setLoading(false);
         }
       },
+      async refreshExamArtifacts(examId) {
+        if (demoMode) return;
+        const page = await listArtifacts(examId);
+        setExams((current) => current.map((exam) => exam.id === examId ? { ...exam, sources: mapArtifacts(page.items), updatedAt: "Just now" } : exam));
+      },
       async addSubject(input) {
         if (!demoMode) {
-          const item = await apiFetch<SubjectDto>("/subjects", { method: "POST", body: JSON.stringify({ title: input.title, university: input.university || null, course_code: input.courseCode || null, visibility: input.visibility }) });
+          const item = await createSubject(input);
           const subject = mapSubject(item);
           setSubjects((current) => [subject, ...current]);
           return subject;
@@ -394,7 +402,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       },
       async updateSubject(id, input) {
         if (!demoMode) {
-          const item = await apiFetch<SubjectDto>(`/subjects/${id}`, { method: "PATCH", body: JSON.stringify({ title: input.title, university: input.university || null, course_code: input.courseCode || null, visibility: input.visibility }) });
+          const item = await updateSubjectApi(id, input);
           const subject = mapSubject(item);
           setSubjects((current) => current.map((candidate) => candidate.id === id ? subject : candidate));
           return subject;
@@ -405,14 +413,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         return { ...subjects.find((subject) => subject.id === id)!, ...input, updatedAt: "Just now" };
       },
       async removeSubject(id) {
-        if (!demoMode) await apiFetch<void>(`/subjects/${id}`, { method: "DELETE" });
+        if (!demoMode) await deleteSubject(id);
         replaceSubjects(subjects.filter((subject) => subject.id !== id));
         replaceExams(exams.filter((exam) => exam.subjectId !== id));
         replaceClasses(classes.filter((studyClass) => studyClass.subjectId !== id));
       },
       async addExam(input) {
         if (!demoMode) {
-          const item = await apiFetch<ExamDto>(`/subjects/${input.subjectId}/exams`, { method: "POST", body: JSON.stringify({ title: input.title, description: input.description || null, exam_type: input.examType || null, language: input.language, target_date: input.targetDate || null, pasted_context: input.pastedContext, sources: [], blueprint: input.blueprint, rules: input.rules, scenario: input.scenario }) });
+          const item = await createExam(input);
           const exam = mapExam(item);
           setExams((current) => [exam, ...current]);
           return exam;
@@ -430,7 +438,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       },
       async updateExam(id, input) {
         if (!demoMode) {
-          const item = await apiFetch<ExamDto>(`/exams/${id}`, { method: "PATCH", body: JSON.stringify({ title: input.title, description: input.description || null, exam_type: input.examType || null, language: input.language, target_date: input.targetDate || null, pasted_context: input.pastedContext, sources: [], blueprint: input.blueprint, rules: input.rules, scenario: input.scenario, configuration_version: exams.find((exam) => exam.id === id)?.configurationVersion }) });
+          const item = await updateExamApi(id, input, exams.find((exam) => exam.id === id)?.configurationVersion);
           const currentExam = exams.find((exam) => exam.id === id);
           const exam = mapExam(item, currentExam ? { ...currentExam, ...input } : undefined);
           setExams((current) => current.map((candidate) => candidate.id === id ? exam : candidate));
@@ -445,7 +453,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         return { ...exams.find((exam) => exam.id === id)!, ...input, updatedAt: "Just now" };
       },
       async removeExam(id) {
-        if (!demoMode) await apiFetch<void>(`/exams/${id}`, { method: "DELETE" });
+        if (!demoMode) await deleteExam(id);
         replaceExams(exams.filter((exam) => exam.id !== id));
         replaceClasses(classes.map((studyClass) => ({
           ...studyClass,
@@ -461,7 +469,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       },
       async addClass(input) {
         if (!demoMode) {
-          const item = await apiFetch<ClassDto>(`/subjects/${input.subjectId}/classes`, { method: "POST", body: JSON.stringify({ name: input.name, description: input.description || null, exam_scope: input.examScope === "selected" ? "selected_exams" : "subject", exam_ids: input.examScope === "selected" ? input.examIds : [] }) });
+          const item = await createClass(input);
           const studyClass = mapClass(item);
           setClasses((current) => [studyClass, ...current]);
           return studyClass;
@@ -478,7 +486,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       },
       async updateClass(id, input) {
         if (!demoMode) {
-          const item = await apiFetch<ClassDto>(`/classes/${id}`, { method: "PATCH", body: JSON.stringify({ name: input.name, description: input.description || null, exam_scope: input.examScope === "selected" ? "selected_exams" : "subject", exam_ids: input.examScope === "selected" ? input.examIds : [] }) });
+          const item = await updateClassApi(id, input);
           const studyClass = mapClass(item);
           setClasses((current) => current.map((candidate) => candidate.id === id ? studyClass : candidate));
           return studyClass;
@@ -489,7 +497,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         return { ...classes.find((studyClass) => studyClass.id === id)!, ...input, updatedAt: "Just now" };
       },
       async removeClass(id) {
-        if (!demoMode) await apiFetch<void>(`/classes/${id}`, { method: "DELETE" });
+        if (!demoMode) await deleteClass(id);
         replaceClasses(classes.filter((studyClass) => studyClass.id !== id));
       },
       resetDemo() {

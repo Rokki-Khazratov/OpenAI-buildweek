@@ -2,16 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { apiFetch } from "@/lib/api/browser";
+import { getCurrentUser, updateCurrentUser, type CurrentUserDto } from "@/features/auth/api";
 
-export type CurrentUser = {
-  id: string;
-  email: string;
-  display_name: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
+export type CurrentUser = CurrentUserDto;
 
 type CurrentUserContextValue = {
   user: CurrentUser | null;
@@ -43,7 +36,7 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      setUser(await apiFetch<CurrentUser>("/me"));
+      setUser(await getCurrentUser());
     } catch (reason) {
       setUser(null);
       setError(reason instanceof Error ? reason.message : "Unable to load your profile.");
@@ -55,7 +48,7 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (demoMode) return;
     let cancelled = false;
-    void apiFetch<CurrentUser>("/me")
+    void getCurrentUser()
       .then((next) => { if (!cancelled) setUser(next); })
       .catch((reason: unknown) => {
         if (!cancelled) {
@@ -73,10 +66,7 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
       setUser(next);
       return next;
     }
-    const next = await apiFetch<CurrentUser>("/me", {
-      method: "PATCH",
-      body: JSON.stringify({ display_name: displayName }),
-    });
+    const next = await updateCurrentUser(displayName);
     setUser(next);
     return next;
   }, [demoMode]);
