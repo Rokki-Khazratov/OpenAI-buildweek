@@ -220,12 +220,13 @@ export function ArtifactManager({
     if (pendingAction[id]) return;
     setPendingAction((current) => ({ ...current, [id]: "delete" }));
     setError(null);
+    let deleted = false;
     try {
       await deleteArtifact(id);
+      deleted = true;
       setConfirmDelete(null);
       if (selectedId === id) setSelectedId(null);
       await refresh();
-      void onMutationRef.current?.();
     } catch (reason) {
       setConfirmDelete(null);
       setError(reason instanceof Error ? reason.message : "Delete failed.");
@@ -235,6 +236,7 @@ export function ArtifactManager({
         delete next[id];
         return next;
       });
+      if (deleted) void onMutationRef.current?.();
     }
   }
 
@@ -242,10 +244,11 @@ export function ArtifactManager({
     if (pendingAction[id]) return;
     setPendingAction((current) => ({ ...current, [id]: "retry" }));
     setError(null);
+    let retried = false;
     try {
       await retryArtifact(id);
+      retried = true;
       await refresh();
-      void onMutationRef.current?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Retry failed.");
     } finally {
@@ -254,6 +257,7 @@ export function ArtifactManager({
         delete next[id];
         return next;
       });
+      if (retried) void onMutationRef.current?.();
     }
   }
 

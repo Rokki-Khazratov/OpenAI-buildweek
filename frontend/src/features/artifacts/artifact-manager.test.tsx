@@ -146,12 +146,13 @@ describe("ArtifactManager", () => {
 
   it("guards retry and confirmed delete against duplicate in-flight requests", async () => {
     const failed = artifact({ processing_status: "failed", failure_message: "Parser failed" });
+    const onMutation = vi.fn();
     listArtifactsMock.mockResolvedValue({ items: [failed], total: 1 });
     let resolveRetry: ((value: Artifact) => void) | undefined;
     let resolveDelete: (() => void) | undefined;
     retryArtifactMock.mockReturnValue(new Promise<Artifact>((resolve) => { resolveRetry = resolve; }));
     deleteArtifactMock.mockReturnValue(new Promise<void>((resolve) => { resolveDelete = resolve; }));
-    render(<ArtifactManager examId="exam-1" />);
+    render(<ArtifactManager examId="exam-1" onMutation={onMutation} />);
     await loadInitialItems();
 
     const retry = screen.getByRole("button", { name: "Retry notes.txt" });
@@ -173,5 +174,6 @@ describe("ArtifactManager", () => {
       await Promise.resolve();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onMutation).toHaveBeenCalledTimes(2);
   });
 });
