@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 
-type Tone = "neutral" | "signal" | "success" | "warning";
+type Tone = "neutral" | "signal" | "success" | "warning" | "danger";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-surface text-muted",
   signal: "bg-signal-soft text-signal",
   success: "bg-emerald-50 text-success",
   warning: "bg-amber-50 text-warning",
+  danger: "bg-red-50 text-danger",
 };
 
 export function StatusPill({ children, tone = "neutral" }: { children: ReactNode; tone?: Tone }) {

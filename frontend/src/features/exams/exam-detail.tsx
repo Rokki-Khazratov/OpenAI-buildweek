@@ -22,6 +22,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
+import { ArtifactManager } from "@/features/artifacts/artifact-manager";
 import { useDemo } from "@/features/demo/demo-provider";
 
 const tabs = ["Data", "Blueprint", "Scenario", "Rules", "History"] as const;
@@ -197,7 +198,7 @@ export function ExamDetail({
 
       <section className="min-h-[360px] py-7">
         {tab === "Data" && (
-          <div>
+          process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? <div>
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">Context data</h2>
@@ -244,7 +245,7 @@ export function ExamDetail({
                 action="Add data"
               />
             )}
-          </div>
+          </div> : <ArtifactManager examId={exam.id} />
         )}
 
         {tab === "Blueprint" && (

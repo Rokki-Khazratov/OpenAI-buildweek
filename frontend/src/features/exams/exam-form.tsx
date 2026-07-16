@@ -21,6 +21,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
+import { uploadArtifact } from "@/features/artifacts/api";
 import { useDemo } from "@/features/demo/demo-provider";
 import type {
   BlueprintSection,
@@ -90,6 +91,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
   );
   const [targetDate, setTargetDate] = useState(exam?.targetDate ?? "");
   const [sources, setSources] = useState<ExamSource[]>(exam?.sources ?? []);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ id: string; file: File; kind: SourceKind }>>([]);
   const [sourceKind, setSourceKind] = useState<SourceKind>("past_exam");
   const [pastedContext, setPastedContext] = useState(exam?.pastedContext ?? "");
   const [blueprint, setBlueprint] = useState<BlueprintSection[]>(
@@ -140,14 +142,20 @@ export function ExamForm({ exam }: { exam?: Exam }) {
 
   function addFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
+    const queued = files.map((file, index) => ({
+      id: `source-${Date.now()}-${index}`,
+      file,
+      kind: sourceKind,
+    }));
+    setPendingFiles((current) => [...current, ...queued]);
     setSources((current) => [
       ...current,
-      ...files.map((file, index) => ({
-        id: `source-${Date.now()}-${index}`,
-        name: file.name,
-        kind: sourceKind,
-        size: sizeLabel(file.size),
-        status: "ready" as const,
+      ...queued.map((item) => ({
+        id: item.id,
+        name: item.file.name,
+        kind: item.kind,
+        size: sizeLabel(item.file.size),
+        status: "processing" as const,
       })),
     ]);
     event.target.value = "";
@@ -226,6 +234,11 @@ export function ExamForm({ exam }: { exam?: Exam }) {
       const saved = exam
         ? await updateExam(exam.id, input)
         : await addExam(input);
+      if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+        for (const item of pendingFiles) {
+          await uploadArtifact(saved.id, item.file, item.kind);
+        }
+      }
       router.push(`/exams/${saved.id}`);
     } catch (reason) {
       setError(
@@ -368,7 +381,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.txt,image/*"
+                  accept=".pdf,.docx,.txt"
                   onChange={addFiles}
                   className="sr-only"
                 />
@@ -394,11 +407,10 @@ export function ExamForm({ exam }: { exam?: Exam }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setSources((current) =>
-                          current.filter((item) => item.id !== source.id),
-                        )
-                      }
+                      onClick={() => {
+                        setSources((current) => current.filter((item) => item.id !== source.id));
+                        setPendingFiles((current) => current.filter((item) => item.id !== source.id));
+                      }}
                       className="grid size-9 place-items-center rounded-[8px] text-muted hover:bg-red-50 hover:text-danger"
                       aria-label={`Remove ${source.name}`}
                     >
@@ -709,7 +721,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
               className={`mt-4 rounded-[10px] border p-4 text-sm ${blueprint.length ? "border-success/20 bg-emerald-50 text-emerald-800" : "border-warning/25 bg-amber-50 text-amber-900"}`}
             >
               {blueprint.length
-                ? "Ready to create. Source files are optional in P0, and every section remains editable from Exam detail."
+                ? "Ready to create. Queued files will upload securely after the Exam is saved, and more can be added from its Data tab."
                 : "This Exam will be saved as a draft. Add at least one blueprint part before generating a mock."}
             </div>
           </div>

@@ -1,6 +1,6 @@
 export type ApiErrorPayload = {
   error?: string;
-  detail?: string | Array<{ msg?: string }>;
+  detail?: string | { message?: string } | Array<{ msg?: string }>;
 };
 
 export class ApiError extends Error {
@@ -30,6 +30,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       const payload = (await response.json()) as ApiErrorPayload;
       if (typeof payload.error === "string") message = payload.error;
       else if (typeof payload.detail === "string") message = payload.detail;
+      else if (payload.detail && !Array.isArray(payload.detail) && typeof payload.detail.message === "string") message = payload.detail.message;
       else if (Array.isArray(payload.detail)) message = payload.detail[0]?.msg ?? message;
     } catch {
       // Keep a safe error when the upstream did not return JSON.
