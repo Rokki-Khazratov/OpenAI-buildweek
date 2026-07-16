@@ -79,10 +79,25 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       APP_ENVIRONMENT: test
       APP_DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/openai_buildweek
       APP_JWT_SECRET: ci-secret-longer-than-thirty-two-characters
+      APP_REDIS_URL: redis://127.0.0.1:6379/0
+      APP_STORAGE_ENDPOINT_URL: http://127.0.0.1:9000
+      APP_STORAGE_PUBLIC_ENDPOINT_URL: http://127.0.0.1:9000
+      APP_STORAGE_ACCESS_KEY: minioadmin
+      APP_STORAGE_SECRET_KEY: minioadmin
+      APP_STORAGE_BUCKET: examtwin-artifacts
       NEXT_PUBLIC_DEMO_MODE: "false"
       API_URL: http://127.0.0.1:8010/api/v1
     steps:
@@ -101,9 +116,24 @@ jobs:
         working-directory: backend
       - run: npm ci --prefix frontend
       - run: npm run build --prefix frontend
-      - name: Start API and web
+      - name: Start object storage
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:9000/minio/health/live > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint /bin/sh \
+            minio/mc:RELEASE.2025-04-16T18-13-26Z \
+            -c "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb --ignore-existing local/examtwin-artifacts && mc anonymous set none local/examtwin-artifacts"
+      - name: Start API, worker, and web
         run: |
           uvicorn app.main:app --app-dir backend/api --host 127.0.0.1 --port 8010 > /tmp/examtwin-api.log 2>&1 &
+          PYTHONPATH=backend/api:backend dramatiq app.modules.artifacts.tasks --processes 1 --threads 2 > /tmp/examtwin-worker.log 2>&1 &
           npm run start --prefix frontend > /tmp/examtwin-web.log 2>&1 &
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8010/api/v1/health/ready > /dev/null && curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
@@ -113,5 +143,13 @@ jobs:
           done
           cat /tmp/examtwin-api.log
           cat /tmp/examtwin-web.log
+          cat /tmp/examtwin-worker.log
           exit 1
       - run: node scripts/e2e-smoke.mjs
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          cat /tmp/examtwin-api.log || true
+          cat /tmp/examtwin-worker.log || true
+          cat /tmp/examtwin-web.log || true
+          docker logs minio || true
