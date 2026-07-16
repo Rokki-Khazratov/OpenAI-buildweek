@@ -90,12 +90,15 @@ export function ArtifactManager({
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialNotice ?? null);
-  const [selected, setSelected] = useState<Artifact | null>(null);
-  const [summary, setSummary] = useState<ArtifactSummary | null>(null);
+  const [uploadFailures, setUploadFailures] = useState<string[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Artifact | null>(null);
+  const [pendingAction, setPendingAction] = useState<Record<string, "delete" | "retry">>({});
+  const [summary, setSummary] = useState<{ artifactId: string; value: ArtifactSummary } | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const itemsRef = useRef<Artifact[]>([]);
   const onMutationRef = useRef(onMutation);
+  const selected = selectedId ? items.find((item) => item.id === selectedId) ?? null : null;
 
   useEffect(() => {
     onMutationRef.current = onMutation;
@@ -150,6 +153,26 @@ export function ArtifactManager({
     };
   }, [items, refresh]);
 
+  useEffect(() => {
+    if (!selected || selected.processing_status !== "ready") return;
+    let active = true;
+    void getArtifactSummary(selected.id)
+      .then((nextSummary) => {
+        if (active) {
+          setSummary({ artifactId: selected.id, value: nextSummary });
+          setSummaryError(null);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setSummaryError(reason instanceof Error ? reason.message : "Summary could not be loaded.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [selected]);
+
   async function addFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -165,6 +188,7 @@ export function ArtifactManager({
     }
     setBusy(true);
     setError(null);
+    setUploadFailures([]);
     const failures: string[] = [];
     for (const file of files) {
       try {
@@ -172,7 +196,8 @@ export function ArtifactManager({
           setProgress((current) => ({ ...current, [file.name]: value })),
         );
       } catch (reason) {
-        failures.push(reason instanceof Error ? reason.message : `${file.name}: upload failed.`);
+        const message = reason instanceof Error ? reason.message : "upload failed.";
+        failures.push(message.startsWith(`${file.name}:`) ? message : `${file.name}: ${message}`);
       } finally {
         setProgress((current) => {
           const next = { ...current };
@@ -187,45 +212,55 @@ export function ArtifactManager({
       }
     }
     setBusy(false);
-    if (failures.length) setError(failures.join(" "));
+    if (failures.length) setUploadFailures(failures);
     void onMutationRef.current?.();
   }
 
   async function remove(id: string) {
+    if (pendingAction[id]) return;
+    setPendingAction((current) => ({ ...current, [id]: "delete" }));
     setError(null);
     try {
       await deleteArtifact(id);
-      if (selected?.id === id) setSelected(null);
+      setConfirmDelete(null);
+      if (selectedId === id) setSelectedId(null);
       await refresh();
       void onMutationRef.current?.();
     } catch (reason) {
+      setConfirmDelete(null);
       setError(reason instanceof Error ? reason.message : "Delete failed.");
+    } finally {
+      setPendingAction((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   }
 
   async function retry(id: string) {
+    if (pendingAction[id]) return;
+    setPendingAction((current) => ({ ...current, [id]: "retry" }));
     setError(null);
     try {
       await retryArtifact(id);
       await refresh();
+      void onMutationRef.current?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Retry failed.");
+    } finally {
+      setPendingAction((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   }
 
   async function openDetails(item: Artifact) {
-    setSelected(item);
+    setSelectedId(item.id);
     setSummary(null);
     setSummaryError(null);
-    if (item.processing_status !== "ready") return;
-    setSummaryLoading(true);
-    try {
-      setSummary(await getArtifactSummary(item.id));
-    } catch (reason) {
-      setSummaryError(reason instanceof Error ? reason.message : "Summary could not be loaded.");
-    } finally {
-      setSummaryLoading(false);
-    }
   }
 
   return (
@@ -272,6 +307,22 @@ export function ArtifactManager({
         </div>
       )}
 
+      {uploadFailures.length > 0 && (
+        <div role="alert" className="mb-4 rounded-[9px] border border-danger/20 bg-red-50 p-3 text-sm text-danger">
+          <p className="font-semibold">
+            {uploadFailures.length === 1
+              ? "One file did not finish uploading."
+              : `${uploadFailures.length} files did not finish uploading.`}{" "}
+            Successfully uploaded files are kept below.
+          </p>
+          <ul className="mt-2 grid list-disc gap-1 pl-5">
+            {uploadFailures.map((failure) => (
+              <li key={failure}>{failure}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div aria-live="polite">
         {Object.entries(progress).map(([name, value]) => (
           <div key={name} className="mb-3 rounded-[10px] border border-line p-3">
@@ -301,8 +352,8 @@ export function ArtifactManager({
                 <StatusPill tone={status.tone}>{status.label}</StatusPill>
                 <button onClick={() => void openDetails(item)} className="grid size-9 place-items-center text-muted hover:text-signal" aria-label={`Details for ${item.original_name}`}><Info size={15} /></button>
                 {item.processing_status === "ready" && <button onClick={() => void downloadArtifact(item.id)} className="grid size-9 place-items-center text-muted hover:text-signal" aria-label={`Download ${item.original_name}`}><Download size={15} /></button>}
-                {item.upload_status === "uploaded" && (item.processing_status === "failed" || isStuckQueued(item)) && <button onClick={() => void retry(item.id)} className="grid size-9 place-items-center text-muted hover:text-signal" aria-label={`Retry ${item.original_name}`}><RefreshCw size={15} /></button>}
-                <button onClick={() => void remove(item.id)} className="grid size-9 place-items-center text-muted hover:text-danger" aria-label={`Delete ${item.original_name}`}><Trash2 size={15} /></button>
+                {item.upload_status === "uploaded" && (item.processing_status === "failed" || isStuckQueued(item)) && <button onClick={() => void retry(item.id)} disabled={Boolean(pendingAction[item.id])} className="grid size-9 place-items-center text-muted hover:text-signal disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Retry ${item.original_name}`}>{pendingAction[item.id] === "retry" ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />}</button>}
+                <button onClick={() => setConfirmDelete(item)} disabled={Boolean(pendingAction[item.id])} className="grid size-9 place-items-center text-muted hover:text-danger disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Delete ${item.original_name}`}>{pendingAction[item.id] === "delete" ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}</button>
               </div>
             );
           })}
@@ -319,7 +370,7 @@ export function ArtifactManager({
         <section className="mt-5 rounded-[13px] border border-line bg-surface-raised p-5" aria-label="Artifact details">
           <div className="flex items-start justify-between gap-4">
             <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Artifact details</p><h3 className="mt-1 font-semibold">{selected.original_name}</h3></div>
-            <button onClick={() => setSelected(null)} className="grid size-9 place-items-center text-muted hover:text-ink" aria-label="Close artifact details"><X size={16} /></button>
+            <button onClick={() => setSelectedId(null)} className="grid size-9 place-items-center text-muted hover:text-ink" aria-label="Close artifact details"><X size={16} /></button>
           </div>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div><dt className="text-xs text-muted">Declared type</dt><dd className="mt-1 break-all font-medium">{selected.declared_media_type}</dd></div>
@@ -327,10 +378,58 @@ export function ArtifactManager({
             <div><dt className="text-xs text-muted">Parser</dt><dd className="mt-1 font-medium">{selected.parser_version ?? "Not processed"}</dd></div>
             <div><dt className="text-xs text-muted">Extracted text</dt><dd className="mt-1 font-medium">{selected.character_count?.toLocaleString() ?? "—"} characters</dd></div>
           </dl>
-          {summaryLoading && <p className="mt-5 text-sm text-muted">Loading extracted content…</p>}
           {summaryError && <p role="alert" className="mt-5 text-sm text-danger">{summaryError}</p>}
-          {summary && <div className="mt-5 border-t border-line pt-4"><div className="flex flex-wrap gap-5 text-xs text-muted"><span>{summary.page_count} pages</span><span>{summary.chunk_count} chunks</span><span>{summary.character_count.toLocaleString()} characters</span></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">{summary.preview || "No text preview available."}</p></div>}
+          {summary?.artifactId === selected.id && <div className="mt-5 border-t border-line pt-4"><div className="flex flex-wrap gap-5 text-xs text-muted"><span>{summary.value.page_count} pages</span><span>{summary.value.chunk_count} chunks</span><span>{summary.value.character_count.toLocaleString()} characters</span></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">{summary.value.preview || "No text preview available."}</p></div>}
         </section>
+      )}
+
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4 backdrop-blur-[2px]"
+          onClick={() => {
+            if (!pendingAction[confirmDelete.id]) setConfirmDelete(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-artifact-title"
+            className="w-full max-w-[440px] rounded-[14px] bg-white p-6 shadow-float"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-artifact-title" className="text-lg font-semibold">
+              Delete {confirmDelete.original_name}?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              The file, its extracted text, and its processed chunks are removed from this Exam.
+              This cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                disabled={Boolean(pendingAction[confirmDelete.id])}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] border border-line bg-white px-4 text-sm font-semibold hover:bg-surface disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void remove(confirmDelete.id)}
+                disabled={Boolean(pendingAction[confirmDelete.id])}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] border border-line bg-white px-4 text-sm font-semibold text-danger hover:border-danger/30 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {pendingAction[confirmDelete.id] === "delete" ? (
+                  <>
+                    <LoaderCircle size={15} className="animate-spin" /> Deleting…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={15} /> Delete file
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
