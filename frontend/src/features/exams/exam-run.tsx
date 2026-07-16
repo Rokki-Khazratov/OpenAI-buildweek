@@ -30,7 +30,7 @@ type Question = {
 };
 
 export function ExamRun({ examId }: { examId: string }) {
-  const { exams, loading, addAttempt } = useDemo();
+  const { exams, loading, addAttempt, refreshExamAttempts } = useDemo();
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const storedExam = exams.find((item) => item.id === examId);
   const [started, setStarted] = useState(false);
@@ -217,6 +217,9 @@ export function ExamRun({ examId }: { examId: string }) {
         window.localStorage.removeItem(`examtwin.activeAttempt.${exam.id}`);
         setResult(attempt);
         setConfirmSubmit(false);
+        void refreshExamAttempts(exam.id).catch(() => {
+          // History refreshes on its next load; the submitted result is already durable.
+        });
       } catch (reason) {
         setError(
           reason instanceof Error

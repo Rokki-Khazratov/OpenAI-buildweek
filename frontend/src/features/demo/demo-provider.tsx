@@ -168,6 +168,7 @@ type DemoContextValue = {
   error: string | null;
   reload: () => Promise<void>;
   refreshExamArtifacts: (examId: string) => Promise<void>;
+  refreshExamAttempts: (examId: string) => Promise<void>;
   addSubject: (input: SubjectInput) => Promise<Subject>;
   updateSubject: (id: string, input: SubjectInput) => Promise<Subject>;
   removeSubject: (id: string) => Promise<void>;
@@ -195,8 +196,12 @@ function mapArtifacts(artifactItems: Artifact[]): Exam["sources"] {
   return artifactItems.map((artifact) => ({ id: artifact.id, name: artifact.original_name, kind: artifact.kind, size: artifact.size_bytes < 1_000_000 ? `${Math.max(1, Math.round(artifact.size_bytes / 1000))} KB` : `${(artifact.size_bytes / 1_000_000).toFixed(1)} MB`, status: artifact.processing_status === "ready" ? "ready" as const : artifact.processing_status === "failed" ? "needs_review" as const : "processing" as const }));
 }
 
+function mapAttempt(attempt: AttemptSummaryDto): ExamAttempt {
+  return { id: attempt.attempt_id, examId: attempt.exam_id, score: attempt.score, maxScore: attempt.max_score, durationMinutes: Math.max(1, Math.ceil(attempt.duration_seconds / 60)), completedAt: new Date(attempt.submitted_at).toLocaleString("en-GB"), feedback: attempt.feedback, answers: {} };
+}
+
 function mapExam(item: ExamDto, previous?: Exam, attemptItems: AttemptSummaryDto[] = [], artifactItems?: Artifact[]): Exam {
-  const attempts = attemptItems.map((attempt) => ({ id: attempt.attempt_id, examId: attempt.exam_id, score: attempt.score, maxScore: attempt.max_score, durationMinutes: Math.max(1, Math.ceil(attempt.duration_seconds / 60)), completedAt: new Date(attempt.submitted_at).toLocaleString("en-GB"), feedback: attempt.feedback, answers: {} }));
+  const attempts = attemptItems.map(mapAttempt);
   const sources = artifactItems ? mapArtifacts(artifactItems) : item.sources;
   return { id: item.id, subjectId: item.subject_id, title: item.title, description: item.description ?? "", examType: item.exam_type ?? "", language: item.language as Exam["language"], targetDate: item.target_date ?? "", status: item.status, pastedContext: item.pasted_context, configurationVersion: item.configuration_version, sources, blueprint: item.blueprint, rules: Object.keys(item.rules).length ? item.rules : emptyRules, scenario: Object.keys(item.scenario).length ? item.scenario : emptyScenario, attempts: attemptItems.length ? attempts : previous?.attempts ?? [], updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
 }
@@ -384,6 +389,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         if (demoMode) return;
         const page = await listArtifacts(examId);
         setExams((current) => current.map((exam) => exam.id === examId ? { ...exam, sources: mapArtifacts(page.items), updatedAt: "Just now" } : exam));
+      },
+      async refreshExamAttempts(examId) {
+        if (demoMode) return;
+        const attemptItems = await listExamAttempts(examId);
+        setExams((current) => current.map((exam) => exam.id === examId ? { ...exam, attempts: attemptItems.map(mapAttempt) } : exam));
       },
       async addSubject(input) {
         if (!demoMode) {

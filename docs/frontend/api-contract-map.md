@@ -1,6 +1,6 @@
 # Frontend ↔ backend contract map
 
-Updated after the P1 artifacts Day 1 integration audit (16 July 2026).
+Updated after the Day 2 statistics and artifact-hardening closure (16 July 2026).
 
 ## Compatibility status
 
@@ -13,7 +13,7 @@ Updated after the P1 artifacts Day 1 integration audit (16 July 2026).
 | Classes | class CRUD | `features/classes/api.ts` + class flows | Integrated |
 | Mock generation | create/get mock | `features/attempts/api.ts` + exam runner | Integrated |
 | Attempts | start/get/autosave/submit/history | `features/attempts/api.ts` + resume/result UI | Integrated |
-| Exam statistics | `GET /exams/{id}/statistics` | backend contract exists; dashboard UI is deferred | Backend only |
+| Exam statistics | `GET /exams/{id}/statistics`, `GET /exams/{id}/attempts` | `features/exams/api.ts` + typed DTO-to-view-model mapper + normal/demo statistics screen | Integrated |
 | Artifact ingestion | create/complete/list/detail/summary/retry/delete/download | `features/artifacts/api.ts` + exam Data tab and wizard | Integrated |
 
 The P0/P1 product UI no longer reads raw transport shapes directly. Each implemented domain has a
@@ -54,14 +54,25 @@ complete P0/P1 compatibility.
 
 ## Remaining work after Day 1
 
-1. Expose exam statistics in the planned progress/reporting frontend.
-2. Add blueprint extraction/version endpoints before replacing the current editable JSON-backed
+1. Add blueprint extraction/version endpoints before replacing the current editable JSON-backed
    blueprint configuration.
-3. Add library, memberships, invitations, activity, and leaderboard contracts for the later social
+2. Add library, memberships, invitations, activity, and leaderboard contracts for the later social
    P1 scope; they are not part of artifact ingestion.
-4. Generate TypeScript transport types from checked-in OpenAPI and add a CI drift check.
-5. Move refresh-token handling to HTTP-only cookies or a backend-for-frontend session boundary
+3. Generate TypeScript transport types from checked-in OpenAPI and add a CI drift check.
+4. Move refresh-token handling to HTTP-only cookies or a backend-for-frontend session boundary
    before production deployment.
+
+## Statistics contract and intentionally omitted visuals
+
+The statistics screen renders only persisted evaluated-attempt aggregates: `attempt_count`,
+`average_percentage`, `best_percentage`, `latest_percentage`, `average_duration_seconds`, and the
+per-attempt `percentage` history. It has explicit loading, empty, one-attempt, recoverable-error,
+and unavailable states; the latter covers the backend's intentional 404 response for both missing
+and foreign Exams.
+
+Mastery, skill breakdowns, time allocation, error types, predictions, and recommendations remain
+roadmap items. They require a versioned endpoint with per-blueprint/skill evidence and confidence
+metadata; the frontend deliberately does not infer them from deterministic aggregate scores.
 
 ## Shared response requirements
 
@@ -70,5 +81,5 @@ complete P0/P1 compatibility.
 - ISO timestamps in UTC.
 - Durable job statuses with optional progress/message fields.
 - Idempotency support for create, generate, and submit actions that can be retried.
-- Permission errors that distinguish unauthenticated, forbidden, and not found without leaking
-  private data.
+- Permission errors that distinguish unauthenticated access from unavailable/not-found resources
+  without leaking private data.
