@@ -35,7 +35,8 @@ async def integration_client() -> AsyncIterator[AsyncClient]:
         async with database.engine.begin() as connection:
             await connection.execute(
                 text(
-                    "TRUNCATE audit_events, class_exams, classes, exams, "
+                    "TRUNCATE audit_events, attempt_responses, attempts, "
+                    "mock_questions, mock_exams, class_exams, classes, exams, "
                     "workspace_members, workspaces, "
                     "refresh_tokens, users RESTART IDENTITY CASCADE"
                 )
@@ -251,3 +252,80 @@ async def test_subject_exam_and_class_scope(integration_client: AsyncClient) -> 
     )
     assert classes.status_code == 200
     assert classes.json()["total"] == 2
+
+
+async def test_durable_exam_mock_and_attempt_flow(integration_client: AsyncClient) -> None:
+    await register(integration_client, "attempt-owner@example.com")
+    tokens = await login(integration_client, "attempt-owner@example.com")
+    headers = bearer(tokens)
+
+    subject = await integration_client.post(
+        "/api/v1/subjects", headers=headers, json={"title": "Physics"}
+    )
+    subject_id = subject.json()["id"]
+    exam = await integration_client.post(
+        f"/api/v1/subjects/{subject_id}/exams",
+        headers=headers,
+        json={
+            "title": "Final",
+            "pasted_context": "Show all reasoning.",
+            "blueprint": [
+                {
+                    "id": "theory",
+                    "title": "Theory",
+                    "questionType": "Open response",
+                    "questionCount": 2,
+                    "durationMinutes": 30,
+                    "points": 20,
+                }
+            ],
+            "rules": {"durationMinutes": 30, "totalPoints": 20},
+        },
+    )
+    assert exam.status_code == 201, exam.text
+    exam_id = exam.json()["id"]
+    assert exam.json()["blueprint"][0]["questionCount"] == 2
+
+    mock = await integration_client.post(f"/api/v1/exams/{exam_id}/mocks", headers=headers)
+    assert mock.status_code == 201, mock.text
+    assert mock.json()["generator"] == "deterministic_demo"
+    assert len(mock.json()["questions"]) == 2
+    assert "answer_key" not in mock.json()["questions"][0]
+
+    attempt = await integration_client.post(
+        f"/api/v1/mocks/{mock.json()['id']}/attempts", headers=headers
+    )
+    assert attempt.status_code == 201, attempt.text
+    attempt_id = attempt.json()["id"]
+    question_id = mock.json()["questions"][0]["id"]
+
+    saved = await integration_client.put(
+        f"/api/v1/attempts/{attempt_id}/responses/{question_id}",
+        headers=headers,
+        json={"answer": "A sufficiently complete and reasoned response.", "flagged": False},
+    )
+    assert saved.status_code == 200, saved.text
+
+    result = await integration_client.post(f"/api/v1/attempts/{attempt_id}/submit", headers=headers)
+    assert result.status_code == 200, result.text
+    assert result.json()["score"] == 10
+
+    repeated = await integration_client.post(
+        f"/api/v1/attempts/{attempt_id}/submit", headers=headers
+    )
+    assert repeated.status_code == 200
+    assert repeated.json() == result.json()
+
+    rejected = await integration_client.put(
+        f"/api/v1/attempts/{attempt_id}/responses/{question_id}",
+        headers=headers,
+        json={"answer": "Changed"},
+    )
+    assert rejected.status_code == 409
+
+    statistics = await integration_client.get(
+        f"/api/v1/exams/{exam_id}/statistics", headers=headers
+    )
+    assert statistics.status_code == 200
+    assert statistics.json()["attempt_count"] == 1
+    assert statistics.json()["low_confidence"] is True

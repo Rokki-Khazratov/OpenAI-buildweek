@@ -1,11 +1,12 @@
 # Backend
 
-The backend currently implements Phase 0–2 and the subject/exam/class foundation of Phase 3: application
-startup, structured logging, request IDs, health endpoints, asynchronous PostgreSQL sessions,
-initial migrations, authentication, user profile operations, ownership-protected Subject CRUD,
-multiple Exams per Subject, and Classes scoped to an entire Subject or selected Exams.
+The backend implements the P0 product loop: application startup, structured logging, request IDs,
+health endpoints, asynchronous PostgreSQL sessions, migrations, authentication, user profile
+operations, ownership-protected Subject CRUD, multiple Exams per Subject, Classes scoped to an
+entire Subject or selected Exams, durable Exam configuration, deterministic mock generation,
+attempt autosave/submission, result history, and basic statistics.
 
-Artifact APIs, background workers, and AI features are not implemented yet.
+Artifact ingestion, background workers, and AI/Data Science features are intentionally deferred.
 
 ## Implemented API
 
@@ -22,6 +23,14 @@ Artifact APIs, background workers, and AI features are not implemented yet.
 - `GET/PATCH/DELETE /api/v1/exams/{exam_id}`
 - `POST/GET /api/v1/subjects/{subject_id}/classes`
 - `GET/PATCH/DELETE /api/v1/classes/{class_id}`
+- `POST /api/v1/exams/{exam_id}/mocks`
+- `GET /api/v1/mocks/{mock_id}`
+- `POST /api/v1/mocks/{mock_id}/attempts`
+- `GET /api/v1/attempts/{attempt_id}`
+- `PUT /api/v1/attempts/{attempt_id}/responses/{question_id}`
+- `POST /api/v1/attempts/{attempt_id}/submit`
+- `GET /api/v1/exams/{exam_id}/attempts`
+- `GET /api/v1/exams/{exam_id}/statistics`
 
 `/workspaces` remains a compatibility contract. New product surfaces use `/subjects`.
 

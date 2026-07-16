@@ -15,6 +15,7 @@ from app.api.schemas.exam import (
 from app.db.dependencies import get_session
 from app.modules.auth.dependencies import WorkspaceReadUser, WorkspaceWriteUser
 from app.modules.exams.service import (
+    ExamConfigurationConflictError,
     ExamNotFoundError,
     create_exam,
     delete_exam,
@@ -94,6 +95,11 @@ async def update(
             exam = await update_exam(session, current_user.id, exam_id, payload)
     except ExamNotFoundError as exc:
         raise not_found() from exc
+    except ExamConfigurationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Exam configuration changed. Reload before saving again.",
+        ) from exc
     return ExamResponse.model_validate(exam)
 
 

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.exam import ExamCreateRequest, ExamUpdateRequest
 from app.db.models.audit import AuditEvent
-from app.db.models.exam import Exam
+from app.db.models.exam import Exam, ExamStatus
 from app.db.models.workspace import Workspace
 from app.modules.workspaces.service import (
     accessible_workspace_filter,
@@ -19,6 +19,10 @@ from app.modules.workspaces.service import (
 
 class ExamNotFoundError(LookupError):
     """Raised when an exam is absent or hidden from the caller."""
+
+
+class ExamConfigurationConflictError(ValueError):
+    """Raised when an outdated editor tries to overwrite newer configuration."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +39,7 @@ async def create_exam(
 ) -> Exam:
     await get_owned_workspace(session, owner_id, subject_id)
     exam = Exam(workspace_id=subject_id, **payload.model_dump())
+    exam.status = ExamStatus.READY if payload.blueprint else ExamStatus.DRAFT
     session.add(exam)
     await session.flush()
     session.add(
@@ -101,8 +106,15 @@ async def update_exam(
 ) -> Exam:
     exam = await get_owned_exam(session, owner_id, exam_id)
     updates = payload.model_dump(exclude_unset=True)
+    requested_version = updates.pop("configuration_version", None)
+    if requested_version is not None and requested_version != exam.configuration_version:
+        raise ExamConfigurationConflictError
     for field, value in updates.items():
         setattr(exam, field, value.strip() if isinstance(value, str) else value)
+    if {"pasted_context", "sources", "blueprint", "rules", "scenario"} & updates.keys():
+        exam.configuration_version += 1
+        if exam.status != ExamStatus.ARCHIVED:
+            exam.status = ExamStatus.READY if exam.blueprint else ExamStatus.DRAFT
     session.add(
         AuditEvent(
             actor_id=owner_id,
