@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     jwt_audience: str = "openai-buildweek-web"
     access_token_minutes: int = Field(default=15, ge=1, le=120)
     refresh_token_days: int = Field(default=30, ge=1, le=90)
+    redis_url: str = "redis://localhost:6379/0"
+    storage_endpoint_url: str = "http://localhost:9000"
+    storage_public_endpoint_url: str = "http://localhost:9000"
+    storage_access_key: SecretStr = SecretStr("minioadmin")
+    storage_secret_key: SecretStr = SecretStr("minioadmin")
+    storage_bucket: str = "examtwin-artifacts"
+    storage_region: str = "us-east-1"
+    artifact_upload_expiry_seconds: int = Field(default=600, ge=60, le=3600)
+    artifact_download_expiry_seconds: int = Field(default=300, ge=60, le=3600)
+    artifact_max_size_bytes: int = Field(default=25 * 1024 * 1024, ge=1024)
+    artifact_max_files_per_exam: int = Field(default=30, ge=1, le=100)
+    artifact_max_pages: int = Field(default=300, ge=1, le=2000)
+    artifact_max_characters: int = Field(default=2_000_000, ge=1000)
+    artifact_dispatch_jobs: bool = True
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -59,6 +73,11 @@ class Settings(BaseSettings):
             and self.jwt_secret.get_secret_value() == "local-development-secret-change-me-32-chars"
         ):
             raise ValueError("APP_JWT_SECRET must be configured in production")
+        if self.environment is Environment.PRODUCTION and (
+            self.storage_access_key.get_secret_value() == "minioadmin"
+            or self.storage_secret_key.get_secret_value() == "minioadmin"
+        ):
+            raise ValueError("Object-storage credentials must be configured in production")
         return self
 
     @property
