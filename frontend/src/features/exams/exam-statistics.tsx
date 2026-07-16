@@ -7,9 +7,10 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { useDemo } from "@/features/demo/demo-provider";
 
 export function ExamStatistics({ examId }: { examId: string }) {
-  const { exams } = useDemo();
+  const { exams, loading } = useDemo();
   const exam = exams.find((item) => item.id === examId);
-  if (!exam) return <div className="p-10 text-sm text-muted">Exam not found.</div>;
+  if (loading) return <div className="p-10 text-sm text-muted">Loading statistics…</div>;
+  if (!exam) return <div className="p-10 text-sm text-muted">Exam not found or unavailable.</div>;
   const attempts = [...exam.attempts].reverse();
   const latest = exam.attempts[0];
   const average = attempts.length ? Math.round(attempts.reduce((total, attempt) => total + attempt.score / attempt.maxScore * 100, 0) / attempts.length) : 0;

@@ -11,11 +11,15 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
     "alembic>=1.14,<2",
     "asyncpg>=0.30,<1",
+    "boto3>=1.39,<2",
+    "dramatiq[redis]>=1.18,<2",
     "email-validator>=2.2,<3",
     "fastapi>=0.128,<0.129",
     "pwdlib[argon2]>=0.3,<1",
     "pydantic-settings>=2.7,<3",
+    "pymupdf>=1.26,<2",
     "pyjwt>=2.10,<3",
+    "python-docx>=1.2,<2",
     "python-multipart>=0.0.20,<1",
     "sqlalchemy[asyncio]>=2.0.36,<3",
     "uvicorn[standard]>=0.34,<1",
@@ -57,3 +61,8 @@ files = ["api/app", "api/tests"]
 [[tool.mypy.overrides]]
 module = "alembic.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["boto3", "boto3.*", "botocore", "botocore.*", "docx", "docx.*", "dramatiq", "dramatiq.*"]
+ignore_missing_imports = true
+disallow_untyped_calls = false

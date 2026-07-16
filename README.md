@@ -13,23 +13,23 @@ The product is deliberately exam-centred:
 
 ## Current status
 
-The repository contains a working Next.js product prototype and a tested FastAPI foundation.
+The repository contains a working, API-backed P0 product. Demo mode remains available for visual review, while normal mode persists the complete core flow in PostgreSQL.
 
 | Area | Status |
 |---|---|
 | Authentication and profile | Implemented in the API and frontend flows |
 | Subject CRUD | Implemented |
 | Nested Exam CRUD | Implemented |
-| Exam data, blueprint, scenario and rules editor | Implemented as a local-first frontend experience |
-| Exam Run simulation | Implemented with timer, navigation, flags, local autosave and archived result |
+| Exam data, blueprint, scenario and rules editor | Persisted through the API with optimistic configuration versions |
+| Exam Run simulation | Backend-generated mock, durable attempt, autosave, reload/resume and immutable submit |
 | Exam statistics | Initial low-confidence overview implemented |
 | Class CRUD and exam scoping | Implemented |
-| PostgreSQL models and migrations | Implemented for auth, workspaces, subjects, exams and classes |
+| PostgreSQL models and migrations | Implemented for the complete P0 domain, including mocks, questions, attempts and responses |
 | Artifact ingestion and retrieval | Planned |
-| Real OpenAI generation and evaluation | Planned; current mock generation is an explicit frontend simulation |
+| Real OpenAI generation and evaluation | Planned; P0 uses an explicit deterministic backend generator/evaluator |
 | Background worker pipeline | Planned |
 
-The UI never presents its prototype scoring as production AI output. The next integration milestone is connecting the existing exam workspace to durable artifact storage, the FastAPI contracts, background processing and OpenAI-powered generation/evaluation.
+The UI never presents prototype scoring as production AI output. Artifact ingestion, background processing, retrieval, and Data Science/OpenAI generation are the next phase after P0.
 
 ## Product preview
 
@@ -130,15 +130,15 @@ This boundary prevents Subject pages from accumulating exam-only responsibilitie
 ```text
 Browser
   │
-  ├── Next.js 16 / React 19 frontend
+  ├── Next.js 16 / React 19 frontend and BFF
   │     ├── App Router pages
-  │     ├── local-first demo provider
-  │     ├── auth proxy and API routes
+  │     ├── API-backed product state (optional local demo mode)
+  │     ├── HTTP-only session cookies and authenticated API proxy
   │     └── focused exam-session layout
   │
   └── FastAPI API
         ├── authentication and JWT lifecycle
-        ├── ownership-protected CRUD services
+        ├── ownership-protected CRUD and attempt lifecycle
         ├── SQLAlchemy async models
         ├── Alembic migrations
         └── PostgreSQL / pgvector
@@ -202,7 +202,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The example environment enables `NEXT_PUBLIC_DEMO_MODE=true`, so protected product pages are available for local review.
 
-### Backend development
+### Full P0 product
 
 From the repository root:
 
@@ -213,16 +213,26 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 cp .env.example .env
-docker compose up -d postgres redis
+docker compose -f compose.yaml up -d postgres redis
 alembic upgrade head
-uvicorn app.main:app --app-dir api --reload --port 8000
+uvicorn app.main:app --app-dir api --reload --port 8010
 ```
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+NEXT_PUBLIC_DEMO_MODE=false API_URL=http://127.0.0.1:8010/api/v1 npm run dev
+```
+
+Open [http://localhost:3000/register](http://localhost:3000/register). Product data is stored in PostgreSQL; the browser only keeps HTTP-only session cookies and an active-attempt recovery pointer.
 
 Health checks:
 
 ```text
-GET http://localhost:8000/api/v1/health/live
-GET http://localhost:8000/api/v1/health/ready
+GET http://localhost:8010/api/v1/health/live
+GET http://localhost:8010/api/v1/health/ready
 ```
 
 The complete containerised backend can also be started from `backend/`:
@@ -250,6 +260,14 @@ All endpoints are prefixed with `/api/v1`.
 | `GET`, `PATCH`, `DELETE` | `/exams/{exam_id}` | Manage one exam |
 | `POST`, `GET` | `/subjects/{subject_id}/classes` | Create or list classes |
 | `GET`, `PATCH`, `DELETE` | `/classes/{class_id}` | Manage one class |
+| `POST` | `/exams/{exam_id}/mocks` | Generate a deterministic mock |
+| `GET` | `/mocks/{mock_id}` | Read a mock without exposing answer keys |
+| `POST` | `/mocks/{mock_id}/attempts` | Start or resume an active attempt |
+| `GET` | `/attempts/{attempt_id}` | Reload an attempt and saved responses |
+| `PUT` | `/attempts/{attempt_id}/responses/{question_id}` | Autosave one response |
+| `POST` | `/attempts/{attempt_id}/submit` | Submit and evaluate idempotently |
+| `GET` | `/exams/{exam_id}/attempts` | List result history |
+| `GET` | `/exams/{exam_id}/statistics` | Read basic exam statistics |
 
 The legacy `/workspaces` contract remains available for compatibility while new product surfaces use Subjects and Exams.
 
@@ -275,6 +293,7 @@ Frontend:
 ```bash
 cd frontend
 npm run lint
+npx tsc --noEmit
 npm run build
 ```
 
@@ -283,14 +302,14 @@ Backend:
 ```bash
 cd backend
 source .venv/bin/activate
-ruff check .
-ruff format --check .
+ruff check api
+ruff format --check api
 mypy
-pytest
+TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/openai_buildweek pytest
 alembic check
 ```
 
-PostgreSQL integration tests are marked with `integration` and validate authentication, ownership isolation and CRUD behaviour against a real database.
+PostgreSQL integration tests validate authentication, ownership isolation, CRUD, durable Exam configuration, mock generation, autosave, immutable submission and statistics. The same gates run in `.github/workflows/ci.yml`.
 
 ## Privacy and product principles
 
@@ -303,15 +322,14 @@ PostgreSQL integration tests are marked with `integration` and validate authenti
 
 ## Roadmap
 
-1. Persist the frontend Exam workspace through the existing FastAPI API.
-2. Add artifact metadata, presigned upload and object-storage contracts.
-3. Implement parsing, chunking, embeddings and retrieval jobs.
-4. Generate editable blueprints and scenarios with OpenAI.
-5. Produce grounded mocks constrained by reviewed data and rules.
-6. Evaluate attempts with citations to rubrics and transparent uncertainty.
-7. Add mastery snapshots and adaptive next-mock generation.
-8. Complete library publishing/cloning and class-level progress.
-9. Add CI, deployment, seeded judge access and an end-to-end demo script.
+1. Add artifact metadata, presigned upload and object-storage contracts.
+2. Implement parsing, chunking, embeddings and retrieval jobs.
+3. Generate editable blueprints and scenarios with OpenAI.
+4. Produce grounded mocks constrained by reviewed source data and rules.
+5. Evaluate attempts with citations to rubrics and transparent uncertainty.
+6. Add mastery snapshots and adaptive next-mock generation.
+7. Complete library publishing/cloning and class-level progress.
+8. Add deployment and seeded judge access.
 
 ## Further documentation
 

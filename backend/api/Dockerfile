@@ -9,6 +9,7 @@ WORKDIR /app
 COPY backend/pyproject.toml ./pyproject.toml
 COPY backend/alembic.ini ./alembic.ini
 COPY backend/api ./api
+COPY backend/worker ./worker
 
 RUN pip install --upgrade pip && pip install .
 

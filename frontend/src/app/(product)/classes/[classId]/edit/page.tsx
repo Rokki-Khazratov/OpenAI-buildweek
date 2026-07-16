@@ -8,8 +8,9 @@ import { useDemo } from "@/features/demo/demo-provider";
 
 export default function EditClassPage() {
   const params = useParams<{ classId: string }>();
-  const { classes } = useDemo();
+  const { classes, loading } = useDemo();
   const studyClass = classes.find((item) => item.id === params.classId);
-  if (!studyClass) return <div className="p-10 text-sm text-muted">Class not found.</div>;
+  if (loading) return <div className="p-10 text-sm text-muted">Loading class…</div>;
+  if (!studyClass) return <div className="p-10 text-sm text-muted">Class not found or unavailable.</div>;
   return <PageFrame eyebrow="Classes / Edit" title={`Edit ${studyClass.name}`}><ClassForm studyClass={studyClass} /></PageFrame>;
 }

@@ -56,6 +56,8 @@ export type Exam = {
   language: ExamLanguage;
   targetDate: string;
   status: ExamStatus;
+  pastedContext: string;
+  configurationVersion: number;
   sources: ExamSource[];
   blueprint: BlueprintSection[];
   rules: ExamRules;
@@ -66,5 +68,5 @@ export type Exam = {
 
 export type ExamInput = Pick<
   Exam,
-  "subjectId" | "title" | "description" | "examType" | "language" | "targetDate" | "sources" | "blueprint" | "rules" | "scenario"
+  "subjectId" | "title" | "description" | "examType" | "language" | "targetDate" | "pastedContext" | "sources" | "blueprint" | "rules" | "scenario"
 >;

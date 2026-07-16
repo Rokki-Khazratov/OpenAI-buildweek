@@ -12,11 +12,13 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
 from app.db.session import Database, DatabaseProtocol
+from app.integrations.storage import S3Storage, StorageProtocol
 
 
 def create_app(
     settings: Settings | None = None,
     database: DatabaseProtocol | None = None,
+    storage: StorageProtocol | None = None,
 ) -> FastAPI:
     """Build an application instance with explicit runtime dependencies."""
     resolved_settings = settings or get_settings()
@@ -25,11 +27,13 @@ def create_app(
         resolved_settings.database_url,
         echo=resolved_settings.database_echo,
     )
+    resolved_storage = storage or S3Storage(resolved_settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings = resolved_settings
         app.state.database = resolved_database
+        app.state.storage = resolved_storage
         yield
         await resolved_database.dispose()
 

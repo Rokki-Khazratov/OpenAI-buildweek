@@ -30,7 +30,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       });
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "Authentication failed");
-      window.location.replace("/subjects");
+      const requested = new URLSearchParams(window.location.search).get("next");
+      const destination = requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/subjects";
+      window.location.replace(destination);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Authentication failed");
       setPending(false);
@@ -54,7 +56,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             </button>
           </div>
         </Field>
-        {!isRegister && <div className="-mt-2 text-right"><button type="button" className="text-xs font-semibold text-signal">Forgot password?</button></div>}
         {error && <p role="alert" className="rounded-[9px] border border-danger/30 bg-red-50 px-3.5 py-3 text-sm text-danger">{error}</p>}
         <Button type="submit" disabled={pending} className="mt-1 min-h-11 w-full">
           {pending ? "Opening workspace…" : isRegister ? "Create account" : "Sign in"}
