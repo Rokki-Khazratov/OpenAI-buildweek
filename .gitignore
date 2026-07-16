@@ -31,5 +31,6 @@ __pycache__/
 
 # Logs and local runtime data
 *.log
+.playwright-mcp/
 tmp/
 data/
