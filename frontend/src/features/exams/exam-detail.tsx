@@ -31,12 +31,14 @@ type Tab = (typeof tabs)[number];
 export function ExamDetail({
   examId,
   initialTab = "Data",
+  uploadPartial = false,
 }: {
   examId: string;
   initialTab?: Tab;
+  uploadPartial?: boolean;
 }) {
   const router = useRouter();
-  const { exams, subjects, loading, removeExam } = useDemo();
+  const { exams, subjects, loading, removeExam, refreshExamArtifacts } = useDemo();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const exam = exams.find((item) => item.id === examId);
@@ -245,7 +247,7 @@ export function ExamDetail({
                 action="Add data"
               />
             )}
-          </div> : <ArtifactManager examId={exam.id} />
+          </div> : <ArtifactManager examId={exam.id} onMutation={() => refreshExamArtifacts(exam.id)} initialNotice={uploadPartial ? "The Exam was saved, but one or more files did not finish uploading. Review the interrupted items below and add those files again." : undefined} />
         )}
 
         {tab === "Blueprint" && (

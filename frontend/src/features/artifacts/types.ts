@@ -1,7 +1,7 @@
 import type { SourceKind } from "@/features/exams/types";
 
 export type ArtifactStatus =
-  | "pending"
+  | "not_queued"
   | "queued"
   | "processing"
   | "ready"
@@ -16,7 +16,7 @@ export type Artifact = {
   declared_media_type: string;
   detected_media_type: string | null;
   size_bytes: number;
-  upload_status: "pending" | "uploaded" | "cancelled";
+  upload_status: "pending" | "uploaded" | "expired" | "cancelled";
   processing_status: ArtifactStatus;
   failure_code: string | null;
   failure_message: string | null;
@@ -30,6 +30,13 @@ export type Artifact = {
 };
 
 export type ArtifactList = { items: Artifact[]; total: number };
+
+export type ArtifactSummary = {
+  page_count: number;
+  character_count: number;
+  chunk_count: number;
+  preview: string;
+};
 
 export type UploadSession = {
   artifact: Artifact;

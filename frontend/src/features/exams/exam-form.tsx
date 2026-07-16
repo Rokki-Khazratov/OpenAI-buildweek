@@ -21,7 +21,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
-import { uploadArtifact } from "@/features/artifacts/api";
+import { uploadArtifact, validateArtifactFile } from "@/features/artifacts/api";
 import { useDemo } from "@/features/demo/demo-provider";
 import type {
   BlueprintSection,
@@ -77,6 +77,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { subjects, addExam, updateExam } = useDemo();
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const initialSubjectId =
     exam?.subjectId ?? searchParams.get("subject") ?? subjects[0]?.id ?? "";
   const [step, setStep] = useState(0);
@@ -90,7 +91,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
     exam?.language ?? "en",
   );
   const [targetDate, setTargetDate] = useState(exam?.targetDate ?? "");
-  const [sources, setSources] = useState<ExamSource[]>(exam?.sources ?? []);
+  const [sources, setSources] = useState<ExamSource[]>(demoMode ? exam?.sources ?? [] : []);
   const [pendingFiles, setPendingFiles] = useState<Array<{ id: string; file: File; kind: SourceKind }>>([]);
   const [sourceKind, setSourceKind] = useState<SourceKind>("past_exam");
   const [pastedContext, setPastedContext] = useState(exam?.pastedContext ?? "");
@@ -142,6 +143,17 @@ export function ExamForm({ exam }: { exam?: Exam }) {
 
   function addFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    const validationErrors = files.map(validateArtifactFile).filter(Boolean) as string[];
+    if (validationErrors.length) {
+      setError(validationErrors.join(" "));
+      return;
+    }
+    if (sources.length + files.length > 20) {
+      setError("An Exam can contain at most 20 files in P1.");
+      return;
+    }
+    setError(null);
     const queued = files.map((file, index) => ({
       id: `source-${Date.now()}-${index}`,
       file,
@@ -158,7 +170,6 @@ export function ExamForm({ exam }: { exam?: Exam }) {
         status: "processing" as const,
       })),
     ]);
-    event.target.value = "";
   }
 
   function updateSection(id: string, patch: Partial<BlueprintSection>) {
@@ -184,7 +195,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
   }
 
   function buildInput(): ExamInput {
-    const contextSources =
+    const contextSources = demoMode &&
       pastedContext.trim() &&
       !sources.some((source) => source.id === "pasted-context")
         ? [
@@ -197,7 +208,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
               status: "ready" as const,
             },
           ]
-        : sources;
+        : demoMode ? sources : [];
     return {
       subjectId: effectiveSubjectId,
       title: title.trim(),
@@ -234,12 +245,17 @@ export function ExamForm({ exam }: { exam?: Exam }) {
       const saved = exam
         ? await updateExam(exam.id, input)
         : await addExam(input);
-      if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+      let uploadFailed = false;
+      if (!demoMode) {
         for (const item of pendingFiles) {
-          await uploadArtifact(saved.id, item.file, item.kind);
+          try {
+            await uploadArtifact(saved.id, item.file, item.kind);
+          } catch {
+            uploadFailed = true;
+          }
         }
       }
-      router.push(`/exams/${saved.id}`);
+      router.push(`/exams/${saved.id}?tab=data${uploadFailed ? "&upload=partial" : ""}`);
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Unable to save this exam.",
@@ -363,6 +379,12 @@ export function ExamForm({ exam }: { exam?: Exam }) {
               solutions, notes, and syllabus extracts. Files stay attached only
               to this Exam.
             </p>
+            {exam && !demoMode && (
+              <div className="mt-4 rounded-[10px] border border-signal/15 bg-signal-soft p-3 text-sm text-signal">
+                Existing files are managed from the Exam Data tab. Files chosen here will be added
+                after these configuration changes are saved.
+              </div>
+            )}
             <div className="mt-5 grid gap-3 sm:grid-cols-[180px_1fr]">
               <Select
                 value={sourceKind}
