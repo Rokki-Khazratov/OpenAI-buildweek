@@ -1,10 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import type { StudyClass, StudyClassInput } from "@/features/classes/types";
 import type { Exam, ExamAttempt, ExamInput } from "@/features/exams/types";
 import type { Subject, SubjectInput } from "@/features/subjects/types";
+import { apiFetch } from "@/lib/api/browser";
 
 const SUBJECTS_STORAGE_KEY = "examtwin.visual.subjects.v1";
 const CLASSES_STORAGE_KEY = "examtwin.visual.classes.v1";
@@ -63,6 +64,8 @@ const initialExams: Exam[] = [
     language: "en",
     targetDate: "2026-08-12",
     status: "ready",
+    pastedContext: "",
+    configurationVersion: 1,
     sources: [
       { id: "q-source-1", name: "Final exam 2024.pdf", kind: "past_exam", size: "2.4 MB", status: "ready" },
       { id: "q-source-2", name: "Official formula sheet.pdf", kind: "rubric", size: "680 KB", status: "ready" },
@@ -89,6 +92,8 @@ const initialExams: Exam[] = [
     language: "en",
     targetDate: "2026-07-29",
     status: "draft",
+    pastedContext: "",
+    configurationVersion: 1,
     sources: [{ id: "qm-source-1", name: "Midterm archive.pdf", kind: "past_exam", size: "1.1 MB", status: "needs_review" }],
     blueprint: [
       { id: "qm-section-1", title: "Theory", questionType: "Short answer", questionCount: 4, durationMinutes: 20, points: 20 },
@@ -108,6 +113,8 @@ const initialExams: Exam[] = [
     language: "en",
     targetDate: "2026-09-04",
     status: "ready",
+    pastedContext: "",
+    configurationVersion: 1,
     sources: [
       { id: "a-source-1", name: "Final 2025.pdf", kind: "past_exam", size: "1.8 MB", status: "ready" },
       { id: "a-source-2", name: "Grading rubric.pdf", kind: "rubric", size: "420 KB", status: "ready" },
@@ -153,20 +160,63 @@ type DemoContextValue = {
   subjects: Subject[];
   exams: Exam[];
   classes: StudyClass[];
-  addSubject: (input: SubjectInput) => Subject;
-  updateSubject: (id: string, input: SubjectInput) => void;
-  removeSubject: (id: string) => void;
-  addExam: (input: ExamInput) => Exam;
-  updateExam: (id: string, input: ExamInput) => void;
-  removeExam: (id: string) => void;
-  addAttempt: (examId: string, attempt: ExamAttempt) => void;
-  addClass: (input: StudyClassInput) => StudyClass;
-  updateClass: (id: string, input: StudyClassInput) => void;
-  removeClass: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  reload: () => Promise<void>;
+  addSubject: (input: SubjectInput) => Promise<Subject>;
+  updateSubject: (id: string, input: SubjectInput) => Promise<Subject>;
+  removeSubject: (id: string) => Promise<void>;
+  addExam: (input: ExamInput) => Promise<Exam>;
+  updateExam: (id: string, input: ExamInput) => Promise<Exam>;
+  removeExam: (id: string) => Promise<void>;
+  addAttempt: (examId: string, attempt: ExamAttempt) => Promise<void>;
+  addClass: (input: StudyClassInput) => Promise<StudyClass>;
+  updateClass: (id: string, input: StudyClassInput) => Promise<StudyClass>;
+  removeClass: (id: string) => Promise<void>;
   resetDemo: () => void;
 };
 
 const DemoContext = createContext<DemoContextValue | null>(null);
+
+type SubjectDto = { id: string; title: string; university: string | null; course_code: string | null; visibility: Subject["visibility"]; updated_at: string };
+type ExamDto = { id: string; subject_id: string; title: string; description: string | null; exam_type: string | null; language: string; target_date: string | null; status: Exam["status"]; pasted_context: string; sources: Exam["sources"]; blueprint: Exam["blueprint"]; rules: Exam["rules"]; scenario: Exam["scenario"]; configuration_version: number; updated_at: string };
+type ClassDto = { id: string; subject_id: string; name: string; description: string | null; exam_scope: "subject" | "selected_exams"; exam_ids: string[]; created_at: string; updated_at: string };
+type AttemptSummaryDto = { attempt_id: string; exam_id: string; score: number; max_score: number; duration_seconds: number; submitted_at: string; feedback: string };
+type ListDto<T> = { items: T[]; total: number };
+
+const emptyRules: Exam["rules"] = { durationMinutes: 60, totalPoints: 100, passPercentage: 50, penalty: "No negative marking", allowedMaterials: "Not specified", gradingNotes: "" };
+const emptyScenario: Exam["scenario"] = { mode: "full_exam", difficulty: "matched", instructions: "" };
+
+function mapSubject(item: SubjectDto): Subject {
+  return { id: item.id, title: item.title, university: item.university ?? "", courseCode: item.course_code ?? "", visibility: item.visibility, updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+}
+
+function mapExam(item: ExamDto, previous?: Exam, attemptItems: AttemptSummaryDto[] = []): Exam {
+  const attempts = attemptItems.map((attempt) => ({ id: attempt.attempt_id, examId: attempt.exam_id, score: attempt.score, maxScore: attempt.max_score, durationMinutes: Math.max(1, Math.ceil(attempt.duration_seconds / 60)), completedAt: new Date(attempt.submitted_at).toLocaleString("en-GB"), feedback: attempt.feedback, answers: {} }));
+  return { id: item.id, subjectId: item.subject_id, title: item.title, description: item.description ?? "", examType: item.exam_type ?? "", language: item.language as Exam["language"], targetDate: item.target_date ?? "", status: item.status, pastedContext: item.pasted_context, configurationVersion: item.configuration_version, sources: item.sources, blueprint: item.blueprint, rules: Object.keys(item.rules).length ? item.rules : emptyRules, scenario: Object.keys(item.scenario).length ? item.scenario : emptyScenario, attempts: attemptItems.length ? attempts : previous?.attempts ?? [], updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+}
+
+function mapClass(item: ClassDto): StudyClass {
+  return { id: item.id, subjectId: item.subject_id, name: item.name, description: item.description ?? "", examScope: item.exam_scope === "selected_exams" ? "selected" : "subject", examIds: item.exam_ids, memberCount: 1, createdAt: new Date(item.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+}
+
+async function fetchRemoteProductData() {
+  const subjectPage = await apiFetch<ListDto<SubjectDto>>("/subjects?limit=100");
+  const childPages = await Promise.all(subjectPage.items.map(async (subject) => {
+    const [examPage, classPage] = await Promise.all([
+      apiFetch<ListDto<ExamDto>>(`/subjects/${subject.id}/exams?limit=100`),
+      apiFetch<ListDto<ClassDto>>(`/subjects/${subject.id}/classes?limit=100`),
+    ]);
+    return { exams: examPage.items, classes: classPage.items };
+  }));
+  const examItems = childPages.flatMap((page) => page.exams);
+  const attemptPages = await Promise.all(examItems.map((exam) => apiFetch<AttemptSummaryDto[]>(`/exams/${exam.id}/attempts`)));
+  return {
+    subjects: subjectPage.items.map(mapSubject),
+    exams: examItems.map((item, index) => mapExam(item, undefined, attemptPages[index])),
+    classes: childPages.flatMap((page) => page.classes).map(mapClass),
+  };
+}
 
 function createId(title: string, fallback = "subject") {
   const slug = title
@@ -210,11 +260,15 @@ function saveExams(exams: Exam[]) {
 }
 
 export function DemoProvider({ children }: { children: ReactNode }) {
-  const [subjects, setSubjects] = useState<Subject[]>(initialSubjects);
-  const [exams, setExams] = useState<Exam[]>(initialExams);
-  const [classes, setClasses] = useState<StudyClass[]>(initialClasses);
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const [subjects, setSubjects] = useState<Subject[]>(demoMode ? initialSubjects : []);
+  const [exams, setExams] = useState<Exam[]>(demoMode ? initialExams : []);
+  const [classes, setClasses] = useState<StudyClass[]>(demoMode ? initialClasses : []);
+  const [loading, setLoading] = useState(!demoMode);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!demoMode) return;
     const timer = window.setTimeout(() => {
       const saved = readSavedSubjects();
       if (!saved) return;
@@ -229,9 +283,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
+    if (!demoMode) return;
     const timer = window.setTimeout(() => {
       const saved = readSavedExams();
       if (!saved) return;
@@ -246,9 +301,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
+    if (!demoMode) return;
     const timer = window.setTimeout(() => {
       const saved = readSavedClasses();
       if (!saved) return;
@@ -263,29 +319,66 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode) return;
+    let cancelled = false;
+    void fetchRemoteProductData()
+      .then((data) => {
+        if (cancelled) return;
+        setSubjects(data.subjects);
+        setExams(data.exams);
+        setClasses(data.classes);
+      })
+      .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load your workspace."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [demoMode]);
 
   function replaceSubjects(next: Subject[]) {
-    saveSubjects(next);
+    if (demoMode) saveSubjects(next);
     setSubjects(next);
   }
 
   function replaceClasses(next: StudyClass[]) {
-    saveClasses(next);
+    if (demoMode) saveClasses(next);
     setClasses(next);
   }
 
   function replaceExams(next: Exam[]) {
-    saveExams(next);
+    if (demoMode) saveExams(next);
     setExams(next);
   }
 
-  const value = useMemo<DemoContextValue>(
-    () => ({
+  const value: DemoContextValue = {
       subjects,
       exams,
       classes,
-      addSubject(input) {
+      loading,
+      error,
+      async reload() {
+        if (demoMode) return;
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await fetchRemoteProductData();
+          setSubjects(data.subjects);
+          setExams(data.exams);
+          setClasses(data.classes);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : "Unable to load your workspace.");
+        } finally {
+          setLoading(false);
+        }
+      },
+      async addSubject(input) {
+        if (!demoMode) {
+          const item = await apiFetch<SubjectDto>("/subjects", { method: "POST", body: JSON.stringify({ title: input.title, university: input.university || null, course_code: input.courseCode || null, visibility: input.visibility }) });
+          const subject = mapSubject(item);
+          setSubjects((current) => [subject, ...current]);
+          return subject;
+        }
         const subject: Subject = {
           id: createId(input.title),
           ...input,
@@ -294,50 +387,80 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         replaceSubjects([subject, ...subjects]);
         return subject;
       },
-      updateSubject(id, input) {
+      async updateSubject(id, input) {
+        if (!demoMode) {
+          const item = await apiFetch<SubjectDto>(`/subjects/${id}`, { method: "PATCH", body: JSON.stringify({ title: input.title, university: input.university || null, course_code: input.courseCode || null, visibility: input.visibility }) });
+          const subject = mapSubject(item);
+          setSubjects((current) => current.map((candidate) => candidate.id === id ? subject : candidate));
+          return subject;
+        }
         replaceSubjects(subjects.map((subject) =>
           subject.id === id ? { ...subject, ...input, updatedAt: "Just now" } : subject,
         ));
+        return { ...subjects.find((subject) => subject.id === id)!, ...input, updatedAt: "Just now" };
       },
-      removeSubject(id) {
+      async removeSubject(id) {
+        if (!demoMode) await apiFetch<void>(`/subjects/${id}`, { method: "DELETE" });
         replaceSubjects(subjects.filter((subject) => subject.id !== id));
         replaceExams(exams.filter((exam) => exam.subjectId !== id));
         replaceClasses(classes.filter((studyClass) => studyClass.subjectId !== id));
       },
-      addExam(input) {
+      async addExam(input) {
+        if (!demoMode) {
+          const item = await apiFetch<ExamDto>(`/subjects/${input.subjectId}/exams`, { method: "POST", body: JSON.stringify({ title: input.title, description: input.description || null, exam_type: input.examType || null, language: input.language, target_date: input.targetDate || null, pasted_context: input.pastedContext, sources: input.sources, blueprint: input.blueprint, rules: input.rules, scenario: input.scenario }) });
+          const exam = mapExam(item);
+          setExams((current) => [exam, ...current]);
+          return exam;
+        }
         const exam: Exam = {
           id: createId(input.title, "exam"),
           ...input,
           status: input.blueprint.length > 0 && input.sources.length > 0 ? "ready" : "draft",
+          configurationVersion: 1,
           attempts: [],
           updatedAt: "Just now",
         };
         replaceExams([exam, ...exams]);
         return exam;
       },
-      updateExam(id, input) {
+      async updateExam(id, input) {
+        if (!demoMode) {
+          const item = await apiFetch<ExamDto>(`/exams/${id}`, { method: "PATCH", body: JSON.stringify({ title: input.title, description: input.description || null, exam_type: input.examType || null, language: input.language, target_date: input.targetDate || null, pasted_context: input.pastedContext, sources: input.sources, blueprint: input.blueprint, rules: input.rules, scenario: input.scenario, configuration_version: exams.find((exam) => exam.id === id)?.configurationVersion }) });
+          const currentExam = exams.find((exam) => exam.id === id);
+          const exam = mapExam(item, currentExam ? { ...currentExam, ...input } : undefined);
+          setExams((current) => current.map((candidate) => candidate.id === id ? exam : candidate));
+          return exam;
+        }
         replaceExams(exams.map((exam) => exam.id === id ? {
           ...exam,
           ...input,
           status: input.blueprint.length > 0 && input.sources.length > 0 ? "ready" : "draft",
           updatedAt: "Just now",
         } : exam));
+        return { ...exams.find((exam) => exam.id === id)!, ...input, updatedAt: "Just now" };
       },
-      removeExam(id) {
+      async removeExam(id) {
+        if (!demoMode) await apiFetch<void>(`/exams/${id}`, { method: "DELETE" });
         replaceExams(exams.filter((exam) => exam.id !== id));
         replaceClasses(classes.map((studyClass) => ({
           ...studyClass,
           examIds: studyClass.examIds.filter((examId) => examId !== id),
         })));
       },
-      addAttempt(examId, attempt) {
+      async addAttempt(examId, attempt) {
         replaceExams(exams.map((exam) => exam.id === examId ? {
           ...exam,
           attempts: [attempt, ...exam.attempts],
           updatedAt: "Just now",
         } : exam));
       },
-      addClass(input) {
+      async addClass(input) {
+        if (!demoMode) {
+          const item = await apiFetch<ClassDto>(`/subjects/${input.subjectId}/classes`, { method: "POST", body: JSON.stringify({ name: input.name, description: input.description || null, exam_scope: input.examScope === "selected" ? "selected_exams" : "subject", exam_ids: input.examScope === "selected" ? input.examIds : [] }) });
+          const studyClass = mapClass(item);
+          setClasses((current) => [studyClass, ...current]);
+          return studyClass;
+        }
         const studyClass: StudyClass = {
           id: createId(input.name, "class"),
           ...input,
@@ -348,12 +471,20 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         replaceClasses([studyClass, ...classes]);
         return studyClass;
       },
-      updateClass(id, input) {
+      async updateClass(id, input) {
+        if (!demoMode) {
+          const item = await apiFetch<ClassDto>(`/classes/${id}`, { method: "PATCH", body: JSON.stringify({ name: input.name, description: input.description || null, exam_scope: input.examScope === "selected" ? "selected_exams" : "subject", exam_ids: input.examScope === "selected" ? input.examIds : [] }) });
+          const studyClass = mapClass(item);
+          setClasses((current) => current.map((candidate) => candidate.id === id ? studyClass : candidate));
+          return studyClass;
+        }
         replaceClasses(classes.map((studyClass) =>
           studyClass.id === id ? { ...studyClass, ...input, updatedAt: "Just now" } : studyClass,
         ));
+        return { ...classes.find((studyClass) => studyClass.id === id)!, ...input, updatedAt: "Just now" };
       },
-      removeClass(id) {
+      async removeClass(id) {
+        if (!demoMode) await apiFetch<void>(`/classes/${id}`, { method: "DELETE" });
         replaceClasses(classes.filter((studyClass) => studyClass.id !== id));
       },
       resetDemo() {
@@ -361,9 +492,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         replaceExams(initialExams);
         replaceClasses(initialClasses);
       },
-    }),
-    [subjects, exams, classes],
-  );
+  };
 
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>;
 }

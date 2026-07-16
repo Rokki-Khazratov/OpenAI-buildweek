@@ -17,7 +17,7 @@ type SearchResult = {
 
 export function GlobalSearch() {
   const router = useRouter();
-  const { subjects } = useDemo();
+  const { subjects, exams, classes } = useDemo();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -49,10 +49,24 @@ export function GlobalSearch() {
       href: item.href,
       icon: item.label === "Classes" ? UsersRound : FileText,
     }));
-    return [...subjectResults, ...routeResults]
+    const examResults = exams.map((exam) => ({
+      id: `exam-${exam.id}`,
+      label: exam.title,
+      meta: `${subjects.find((subject) => subject.id === exam.subjectId)?.title ?? "Exam"} · Exam`,
+      href: `/exams/${exam.id}`,
+      icon: FileText,
+    }));
+    const classResults = classes.map((studyClass) => ({
+      id: `class-${studyClass.id}`,
+      label: studyClass.name,
+      meta: `${subjects.find((subject) => subject.id === studyClass.subjectId)?.title ?? "Class"} · Class`,
+      href: `/classes/${studyClass.id}`,
+      icon: UsersRound,
+    }));
+    return [...subjectResults, ...examResults, ...classResults, ...routeResults]
       .filter((item) => !term || `${item.label} ${item.meta}`.toLowerCase().includes(term))
       .slice(0, 8);
-  }, [query, subjects]);
+  }, [classes, exams, query, subjects]);
 
   function choose(href: string) {
     setOpen(false);

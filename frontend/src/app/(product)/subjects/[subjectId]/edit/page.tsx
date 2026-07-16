@@ -8,8 +8,9 @@ import { SubjectForm } from "@/features/subjects/subject-form";
 
 export default function EditSubjectPage() {
   const params = useParams<{ subjectId: string }>();
-  const { subjects } = useDemo();
+  const { subjects, loading } = useDemo();
   const subject = subjects.find((item) => item.id === params.subjectId);
-  if (!subject) return <div className="p-10 text-sm text-muted">Subject not found.</div>;
+  if (loading) return <div className="p-10 text-sm text-muted">Loading subject…</div>;
+  if (!subject) return <div className="p-10 text-sm text-muted">Subject not found or unavailable.</div>;
   return <PageFrame eyebrow="Subjects / Edit" title={`Edit ${subject.title}`}><SubjectForm subject={subject} /></PageFrame>;
 }
