@@ -34,3 +34,5 @@ __pycache__/
 .playwright-mcp/
 tmp/
 data/
+!frontend/src/data/
+!frontend/src/data/**
