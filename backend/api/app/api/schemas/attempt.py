@@ -15,6 +15,8 @@ class MockQuestionResponse(BaseModel):
     question_type: str
     prompt: str
     points: int
+    topic: str | None = None
+    citations: list[dict[str, str | int | None]] = Field(default_factory=list)
 
 
 class MockExamResponse(BaseModel):

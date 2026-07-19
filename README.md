@@ -13,7 +13,7 @@ The product is deliberately exam-centred:
 
 ## Current status
 
-The repository contains a working, API-backed P0 product. Demo mode remains available for visual review, while normal mode persists the complete core flow in PostgreSQL.
+The repository contains a working, API-backed P0 product, the complete P1 artifact pipeline, and an opt-in P2 grounded-AI loop. Demo mode remains available for visual review, while normal mode persists the complete core flow in PostgreSQL.
 
 | Area | Status |
 |---|---|
@@ -25,11 +25,11 @@ The repository contains a working, API-backed P0 product. Demo mode remains avai
 | Exam statistics | Initial low-confidence overview implemented |
 | Class CRUD and exam scoping | Implemented |
 | PostgreSQL models and migrations | Implemented for the complete P0 domain, including mocks, questions, attempts and responses |
-| Artifact ingestion and retrieval | Planned |
-| Real OpenAI generation and evaluation | Planned; P0 uses an explicit deterministic backend generator/evaluator |
-| Background worker pipeline | Planned |
+| Artifact ingestion and retrieval | Implemented: private upload, parsing, chunking, embeddings and owned-exam vector retrieval |
+| Vertex AI generation and evaluation | Implemented with `gemini-3.5-flash` when `APP_VERTEX_PROJECT` is configured; deterministic fallback remains available |
+| Background worker pipeline | Implemented with durable Dramatiq/Redis jobs and restart-safe retries |
 
-The UI never presents prototype scoring as production AI output. Artifact ingestion, background processing, retrieval, and Data Science/OpenAI generation are the next phase after P0.
+The UI distinguishes the deterministic fallback from Vertex AI generation. AI questions are grounded in retrieved chunks, retain source citations, and use prior weak-topic evidence to adapt later mocks.
 
 ## Product preview
 
@@ -143,9 +143,8 @@ Browser
         ├── Alembic migrations
         └── PostgreSQL / pgvector
 
-Planned pipeline:
 files → object storage → worker → parsing/chunking → embeddings/retrieval
-      → OpenAI blueprint/scenario generation → mock → evaluation → mastery
+      → Vertex AI grounded generation → mock → evaluation → mastery
 ```
 
 ### Technology stack
@@ -156,8 +155,8 @@ files → object storage → worker → parsing/chunking → embeddings/retrieva
 | API | FastAPI, Pydantic, SQLAlchemy asyncio | Auth, ownership and domain APIs |
 | Database | PostgreSQL 17 with pgvector | Relational records and future vector retrieval |
 | Migrations | Alembic | Versioned database schema |
-| Cache/jobs | Redis, planned worker | Future artifact and AI job orchestration |
-| AI | OpenAI Responses and Embeddings APIs, planned | Extraction, grounded generation and evaluation |
+| Cache/jobs | Redis and Dramatiq worker | Durable artifact processing and retries |
+| AI | Vertex AI / Google Gen AI SDK | Gemini 3.5 Flash generation, embeddings, evaluation and adaptation |
 | Runtime | Docker Compose | Local PostgreSQL, Redis and API services |
 
 ## Repository layout
@@ -227,6 +226,8 @@ NEXT_PUBLIC_DEMO_MODE=false API_URL=http://127.0.0.1:8010/api/v1 npm run dev
 ```
 
 Open [http://localhost:3000/register](http://localhost:3000/register). Product data is stored in PostgreSQL; the browser only keeps HTTP-only session cookies and an active-attempt recovery pointer.
+
+To enable grounded AI, set `APP_VERTEX_PROJECT` and `APP_VERTEX_LOCATION` in `backend/.env` and authenticate with Google Application Default Credentials (`gcloud auth application-default login`). Without Vertex configuration, the same endpoints deliberately use the deterministic generator/evaluator, making local development and CI reproducible.
 
 Health checks:
 

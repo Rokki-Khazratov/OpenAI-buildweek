@@ -17,6 +17,7 @@ from app.db.models.artifact import (
     ProcessingStatus,
 )
 from app.integrations.storage import StorageProtocol
+from app.integrations.vertex_ai import create_embeddings
 from app.modules.artifacts.parsing import (
     CHUNKER_VERSION,
     PARSER_VERSION,
@@ -96,32 +97,39 @@ async def process_job(
         await session.execute(delete(ArtifactPage).where(ArtifactPage.artifact_id == artifact.id))
         page_by_number: dict[int, ArtifactPage] = {}
         for page in document.pages:
-            item = ArtifactPage(
+            page_item = ArtifactPage(
                 artifact_id=artifact.id,
                 parser_version=PARSER_VERSION,
                 page_number=page.number,
                 text=page.text,
                 heading=page.heading,
             )
-            session.add(item)
-            page_by_number[page.number] = item
+            session.add(page_item)
+            page_by_number[page.number] = page_item
         await session.flush()
+        chunk_rows: list[ArtifactChunk] = []
         for chunk in chunks:
             page_row = page_by_number[chunk.page_number]
-            session.add(
-                ArtifactChunk(
-                    artifact_id=artifact.id,
-                    page_id=page_row.id,
-                    parser_version=PARSER_VERSION,
-                    chunker_version=CHUNKER_VERSION,
-                    chunk_index=chunk.index,
-                    text=chunk.text,
-                    token_count=max(1, len(chunk.text.split())),
-                    start_offset=chunk.start_offset,
-                    end_offset=chunk.end_offset,
-                    attributes={"page_number": chunk.page_number},
-                )
+            chunk_row = ArtifactChunk(
+                artifact_id=artifact.id,
+                page_id=page_row.id,
+                parser_version=PARSER_VERSION,
+                chunker_version=CHUNKER_VERSION,
+                chunk_index=chunk.index,
+                text=chunk.text,
+                token_count=max(1, len(chunk.text.split())),
+                start_offset=chunk.start_offset,
+                end_offset=chunk.end_offset,
+                attributes={"page_number": chunk.page_number},
             )
+            session.add(chunk_row)
+            chunk_rows.append(chunk_row)
+        await session.flush()
+        if settings.vertex_configured:
+            embeddings = await create_embeddings(settings, [item.text for item in chunk_rows])
+            for item, embedding in zip(chunk_rows, embeddings, strict=True):
+                item.embedding = embedding
+                item.embedding_model = settings.vertex_embedding_model
         now = datetime.now(UTC)
         artifact.detected_media_type = document.media_type
         artifact.parser_version = PARSER_VERSION

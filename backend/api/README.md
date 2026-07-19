@@ -7,7 +7,7 @@ entire Subject or selected Exams, durable Exam configuration, deterministic mock
 attempt autosave/submission, result history, basic statistics, private direct-to-object-storage
 uploads, durable background processing, and deterministic PDF/DOCX/TXT parsing and chunking.
 
-AI generation, embeddings, OCR, and Data Science features remain intentionally deferred.
+Embeddings, owned-exam vector retrieval, structured grounded mock generation, source citations, AI evaluation, and weak-topic adaptation are implemented with Vertex AI and `gemini-3.5-flash` behind `APP_VERTEX_PROJECT`. Authentication uses Google Application Default Credentials. Without Vertex configuration the deterministic P0 behavior remains active. OCR and advanced cohort analytics remain deferred.
 
 ## Implemented API
 

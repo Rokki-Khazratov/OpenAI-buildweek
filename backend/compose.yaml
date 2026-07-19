@@ -69,6 +69,11 @@ services:
       APP_STORAGE_ACCESS_KEY: minioadmin
       APP_STORAGE_SECRET_KEY: minioadmin
       APP_STORAGE_BUCKET: examtwin-artifacts
+      APP_AI_ENABLED: ${APP_AI_ENABLED:-true}
+      APP_VERTEX_PROJECT: ${APP_VERTEX_PROJECT:-}
+      APP_VERTEX_LOCATION: ${APP_VERTEX_LOCATION:-global}
+      APP_VERTEX_GENERATION_MODEL: ${APP_VERTEX_GENERATION_MODEL:-gemini-3.5-flash}
+      GOOGLE_APPLICATION_CREDENTIALS: /var/secrets/google/application_default_credentials.json
       PYTHONPATH: /app/api
     command:
       - uvicorn
@@ -80,6 +85,7 @@ services:
       - --reload
     volumes:
       - ./api:/app/api
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/var/secrets/google/application_default_credentials.json:ro
     ports:
       - "${API_PORT:-8010}:8000"
     depends_on:
@@ -101,11 +107,17 @@ services:
       APP_STORAGE_ACCESS_KEY: minioadmin
       APP_STORAGE_SECRET_KEY: minioadmin
       APP_STORAGE_BUCKET: examtwin-artifacts
+      APP_AI_ENABLED: ${APP_AI_ENABLED:-true}
+      APP_VERTEX_PROJECT: ${APP_VERTEX_PROJECT:-}
+      APP_VERTEX_LOCATION: ${APP_VERTEX_LOCATION:-global}
+      APP_VERTEX_GENERATION_MODEL: ${APP_VERTEX_GENERATION_MODEL:-gemini-3.5-flash}
+      GOOGLE_APPLICATION_CREDENTIALS: /var/secrets/google/application_default_credentials.json
       PYTHONPATH: /app/api:/app
     command: ["dramatiq", "app.modules.artifacts.tasks"]
     volumes:
       - ./api:/app/api
       - ./worker:/app/worker
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/var/secrets/google/application_default_credentials.json:ro
     depends_on:
       redis:
         condition: service_healthy

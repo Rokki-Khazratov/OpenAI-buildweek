@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     artifact_max_pages: int = Field(default=300, ge=1, le=2000)
     artifact_max_characters: int = Field(default=2_000_000, ge=1000)
     artifact_dispatch_jobs: bool = True
+    vertex_project: str | None = None
+    vertex_location: str = "global"
+    vertex_generation_model: str = "gemini-3.5-flash"
+    vertex_embedding_model: str = "gemini-embedding-001"
+    vertex_embedding_dimensions: int = Field(default=1536, ge=256, le=3072)
+    ai_enabled: bool = True
+    retrieval_chunk_limit: int = Field(default=12, ge=1, le=30)
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -78,7 +85,19 @@ class Settings(BaseSettings):
             or self.storage_secret_key.get_secret_value() == "minioadmin"
         ):
             raise ValueError("Object-storage credentials must be configured in production")
+        if (
+            self.environment is Environment.PRODUCTION
+            and self.ai_enabled
+            and self.vertex_project is None
+        ):
+            raise ValueError(
+                "APP_VERTEX_PROJECT must be configured when AI is enabled in production"
+            )
         return self
+
+    @property
+    def vertex_configured(self) -> bool:
+        return self.ai_enabled and self.vertex_project is not None
 
     @property
     def docs_enabled(self) -> bool:

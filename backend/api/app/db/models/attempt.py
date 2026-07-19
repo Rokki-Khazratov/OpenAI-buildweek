@@ -53,6 +53,10 @@ class MockQuestion(UUIDPrimaryKeyMixin, Base):
     prompt: Mapped[str] = mapped_column(Text)
     points: Mapped[int] = mapped_column(Integer)
     answer_key: Mapped[str] = mapped_column(Text)
+    citations: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, server_default="[]"
+    )
+    topic: Mapped[str | None] = mapped_column(String(200))
 
 
 class Attempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):

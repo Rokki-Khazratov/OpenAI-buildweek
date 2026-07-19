@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.attempt import (
@@ -55,6 +55,8 @@ def mock_response(mock: MockExam, questions: list[MockQuestion]) -> MockExamResp
                 question_type=item.question_type,
                 prompt=item.prompt,
                 points=item.points,
+                topic=item.topic,
+                citations=item.citations,
             )
             for item in questions
         ],
@@ -89,11 +91,13 @@ def detail_response(
 
 @router.post("/exams/{exam_id}/mocks", status_code=status.HTTP_201_CREATED)
 async def create_mock(
-    exam_id: UUID, current_user: WorkspaceWriteUser, session: SessionDependency
+    exam_id: UUID, request: Request, current_user: WorkspaceWriteUser, session: SessionDependency
 ) -> MockExamResponse:
     try:
         async with session.begin():
-            mock, questions = await generate_mock(session, current_user.id, exam_id)
+            mock, questions = await generate_mock(
+                session, current_user.id, exam_id, request.app.state.settings
+            )
     except ExamNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Exam not found") from exc
     except ValueError as exc:
@@ -170,11 +174,16 @@ async def write_response(
 
 @router.post("/attempts/{attempt_id}/submit")
 async def submit(
-    attempt_id: UUID, current_user: WorkspaceReadUser, session: SessionDependency
+    attempt_id: UUID,
+    request: Request,
+    current_user: WorkspaceReadUser,
+    session: SessionDependency,
 ) -> AttemptResultResponse:
     try:
         async with session.begin():
-            attempt = await submit_attempt(session, current_user.id, attempt_id)
+            attempt = await submit_attempt(
+                session, current_user.id, attempt_id, request.app.state.settings
+            )
     except (AttemptNotFoundError, MockNotFoundError, ExamNotFoundError) as exc:
         raise HTTPException(status_code=404, detail="Attempt not found") from exc
     assert (

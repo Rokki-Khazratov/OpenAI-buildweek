@@ -11,7 +11,7 @@ toolchain for this application.
 - Exam CRUD, the five-step creation flow, focused mock simulation, local autosave, result archive,
   and low-confidence statistics are implemented as a local-first visual prototype.
 - Subject, Exam, Class, and Attempt demo data persists in browser storage.
-- Real artifact processing, OpenAI generation/evaluation, and analytics remain backend/worker
+- Real artifact processing, Vertex AI generation/evaluation, and analytics remain backend/worker
   integrations; the UI does not claim those prototype results are production AI output.
 
 ## Structure

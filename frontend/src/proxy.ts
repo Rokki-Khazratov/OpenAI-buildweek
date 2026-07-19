@@ -13,7 +13,7 @@ export function proxy(request: NextRequest) {
   const authenticated = request.cookies.has(ACCESS_COOKIE) || request.cookies.has(REFRESH_COOKIE);
   if (!authenticated && !publicRoutes.has(path)) {
     const login = new URL("/login", request.url);
-    login.searchParams.set("next", path);
+    login.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(login);
   }
   if (authenticated && (path === "/login" || path === "/register" || path === "/")) {

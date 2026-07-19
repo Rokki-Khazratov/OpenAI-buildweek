@@ -12,6 +12,7 @@ import {
   Wifi,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Brand } from "@/components/layout/brand";
@@ -27,10 +28,16 @@ type Question = {
   prompt: string;
   points: number;
   type: string;
+  citations: Array<{
+    chunk_id: string;
+    artifact_id?: string;
+    page_number?: number | null;
+  }>;
 };
 
 export function ExamRun({ examId }: { examId: string }) {
   const { exams, loading, addAttempt, refreshExamAttempts } = useDemo();
+  const searchParams = useSearchParams();
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const storedExam = exams.find((item) => item.id === examId);
   const [started, setStarted] = useState(false);
@@ -70,6 +77,7 @@ export function ExamRun({ examId }: { examId: string }) {
             prompt: questionPrompt(section.title, section.questionType, index),
             points: Math.round(section.points / section.questionCount),
             type: section.questionType,
+            citations: [],
           }),
         ),
       ) ?? [],
@@ -87,6 +95,7 @@ export function ExamRun({ examId }: { examId: string }) {
         prompt: question.prompt,
         points: question.points,
         type: question.question_type,
+        citations: question.citations ?? [],
       })),
     );
     setAnswers(
@@ -110,16 +119,16 @@ export function ExamRun({ examId }: { examId: string }) {
 
   useEffect(() => {
     if (demoMode) return;
-    const savedAttempt = window.localStorage.getItem(
-      `examtwin.activeAttempt.${examId}`,
-    );
-    if (!savedAttempt) return;
-    void getAttempt(savedAttempt)
+    const requestedAttempt = searchParams.get("attempt");
+    const savedAttempt = window.localStorage.getItem(`examtwin.activeAttempt.${examId}`);
+    const attemptToLoad = requestedAttempt ?? savedAttempt;
+    if (!attemptToLoad) return;
+    void getAttempt(attemptToLoad)
       .then(hydrateAttempt)
       .catch(() =>
-        window.localStorage.removeItem(`examtwin.activeAttempt.${examId}`),
+        !requestedAttempt && window.localStorage.removeItem(`examtwin.activeAttempt.${examId}`),
       );
-  }, [demoMode, examId]);
+  }, [demoMode, examId, searchParams]);
 
   useEffect(() => {
     if (!started || result || secondsLeft <= 0) return;
@@ -487,6 +496,15 @@ export function ExamRun({ examId }: { examId: string }) {
             <span>{activeQuestion.type}</span>
             <span>·</span>
             <span>{activeQuestion.points} points</span>
+            {activeQuestion.citations.length > 0 && (
+              <>
+                <span>·</span>
+                <span>
+                  Grounded in {activeQuestion.citations.length} source
+                  {activeQuestion.citations.length === 1 ? "" : "s"}
+                </span>
+              </>
+            )}
           </div>
           <textarea
             value={answers[activeQuestion.id] ?? ""}

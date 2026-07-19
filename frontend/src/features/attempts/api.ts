@@ -4,7 +4,16 @@ export type MockDto = {
   id: string;
   duration_minutes: number;
   max_score: number;
-  questions: Array<{ id: string; section_id: string; position: number; prompt: string; points: number; question_type: string }>;
+  questions: Array<{
+    id: string;
+    section_id: string;
+    position: number;
+    prompt: string;
+    points: number;
+    question_type: string;
+    topic?: string | null;
+    citations?: Array<{ chunk_id: string; artifact_id?: string; page_number?: number | null }>;
+  }>;
 };
 export type AttemptDto = {
   id: string;
