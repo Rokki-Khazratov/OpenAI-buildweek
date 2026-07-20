@@ -98,6 +98,49 @@ if (artifact?.processing_status !== "ready") {
   throw new Error(`Vertex artifact processing failed: ${JSON.stringify(artifact)}`);
 }
 
+const extraction = await request(
+  `/exams/${exam.id}/blueprints/extractions`,
+  {
+    method: "POST",
+    headers: { "Idempotency-Key": `vertex-blueprint-${unique}` },
+    body: JSON.stringify({ artifact_ids: [artifact.id] }),
+  },
+  token,
+);
+if (extraction.status !== "draft") {
+  throw new Error(`Blueprint extraction failed: ${JSON.stringify(extraction)}`);
+}
+let reviewedBlueprint = extraction;
+if (extraction.content.unresolved_fields?.length) {
+  reviewedBlueprint = await request(
+    `/blueprints/${extraction.id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        content: {
+          ...extraction.content,
+          rules: {
+            ...extraction.content.rules,
+            duration_minutes: extraction.content.rules.duration_minutes ?? 20,
+            total_points: extraction.content.rules.total_points ?? 20,
+            pass_percentage: extraction.content.rules.pass_percentage ?? 50,
+          },
+          unresolved_fields: [],
+        },
+      }),
+    },
+    token,
+  );
+}
+const approved = await request(
+  `/blueprints/${reviewedBlueprint.id}/approve`,
+  { method: "POST" },
+  token,
+);
+if (approved.status !== "approved") {
+  throw new Error(`Blueprint approval failed: ${JSON.stringify(approved)}`);
+}
+
 const mock = await request(`/exams/${exam.id}/mocks`, { method: "POST" }, token);
 if (!mock.generator.startsWith("vertex:gemini-3.5-flash")) {
   throw new Error(`Expected Vertex generator, received ${mock.generator}`);
@@ -114,12 +157,47 @@ for (const question of mock.questions) {
   }
 }
 
+const attempt = await request(
+  `/mocks/${mock.id}/attempts`,
+  { method: "POST" },
+  token,
+);
+for (const question of mock.questions) {
+  await request(
+    `/attempts/${attempt.id}/responses/${question.id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        answer: "The first law states that energy is conserved: the change in internal energy equals heat added minus work done. For an ideal gas PV = nRT, and a reversible adiabatic process exchanges no heat.",
+        flagged: false,
+      }),
+    },
+    token,
+  );
+}
+const result = await request(
+  `/attempts/${attempt.id}/submit`,
+  { method: "POST", headers: { "Idempotency-Key": attempt.id } },
+  token,
+);
+if (result.question_results.length !== mock.questions.length) {
+  throw new Error(`Evaluation result is incomplete: ${JSON.stringify(result)}`);
+}
+if (result.question_results.some((item) => !item.strategy || item.confidence < 0 || item.confidence > 1)) {
+  throw new Error(`Evaluation contract is invalid: ${JSON.stringify(result.question_results)}`);
+}
+
 console.log(JSON.stringify({
   status: "passed",
   sandbox_email: email,
   exam_id: exam.id,
   artifact_id: artifact.id,
+  blueprint_id: approved.id,
+  blueprint_status: approved.status,
   generator: mock.generator,
+  attempt_id: attempt.id,
+  score: `${result.score}/${result.max_score}`,
+  evaluator: result.evaluator,
   questions: mock.questions.map((question) => ({
     id: question.id,
     prompt: question.prompt,

@@ -23,6 +23,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { ArtifactManager } from "@/features/artifacts/artifact-manager";
+import { BlueprintWorkspace } from "@/features/blueprints/blueprint-workspace";
 import { useDemo } from "@/features/demo/demo-provider";
 
 const tabs = ["Data", "Blueprint", "Scenario", "Rules", "History"] as const;
@@ -38,7 +39,7 @@ export function ExamDetail({
   uploadPartial?: boolean;
 }) {
   const router = useRouter();
-  const { exams, subjects, loading, removeExam, refreshExamArtifacts } = useDemo();
+  const { exams, subjects, loading, removeExam, refreshExamArtifacts, reload } = useDemo();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const exam = exams.find((item) => item.id === examId);
@@ -251,7 +252,7 @@ export function ExamDetail({
         )}
 
         {tab === "Blueprint" && (
-          <div>
+          process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? <div>
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">
@@ -309,7 +310,7 @@ export function ExamDetail({
                 action="Build blueprint"
               />
             )}
-          </div>
+          </div> : <BlueprintWorkspace exam={exam} onApproved={reload} />
         )}
 
         {tab === "Scenario" && (
@@ -404,9 +405,11 @@ export function ExamDetail({
             {exam.attempts.length ? (
               <div className="divide-y divide-line rounded-[13px] border border-line">
                 {exam.attempts.map((attempt) => (
-                  <div
+                  <Link
                     key={attempt.id}
-                    className="grid gap-4 p-4 sm:grid-cols-[120px_1fr_auto] sm:items-center"
+                    href={`/exams/${exam.id}/run?attempt=${attempt.id}`}
+                    aria-label={`Open result from ${attempt.completedAt}`}
+                    className="group grid gap-4 p-4 transition-colors hover:bg-surface sm:grid-cols-[120px_1fr_auto] sm:items-center"
                   >
                     <div>
                       <p className="font-mono text-2xl font-semibold">
@@ -424,10 +427,14 @@ export function ExamDetail({
                         {attempt.feedback}
                       </p>
                     </div>
-                    <span className="text-xs text-muted">
+                    <span className="flex items-center gap-2 text-xs text-muted">
                       {attempt.durationMinutes} min
+                      <ArrowRight
+                        size={14}
+                        className="transition-transform group-hover:translate-x-0.5"
+                      />
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (

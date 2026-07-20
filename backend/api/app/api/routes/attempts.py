@@ -14,12 +14,15 @@ from app.api.schemas.attempt import (
     ExamStatisticsResponse,
     MockExamResponse,
     MockQuestionResponse,
+    QuestionResultResponse,
     ResponseSaveRequest,
+    SectionResultResponse,
 )
 from app.db.dependencies import get_session
 from app.db.models.attempt import Attempt, AttemptResponse, MockExam, MockQuestion
 from app.modules.auth.dependencies import WorkspaceReadUser, WorkspaceWriteUser
 from app.modules.exams.attempt_service import (
+    AIServiceError,
     AttemptClosedError,
     AttemptNotFoundError,
     MockNotFoundError,
@@ -47,6 +50,7 @@ def mock_response(mock: MockExam, questions: list[MockQuestion]) -> MockExamResp
         instructions=mock.instructions,
         duration_minutes=mock.duration_minutes,
         max_score=mock.max_score,
+        generation_metadata=mock.generation_metadata,
         questions=[
             MockQuestionResponse(
                 id=item.id,
@@ -56,6 +60,8 @@ def mock_response(mock: MockExam, questions: list[MockQuestion]) -> MockExamResp
                 prompt=item.prompt,
                 points=item.points,
                 topic=item.topic,
+                skill_ids=item.skill_ids,
+                difficulty=item.difficulty,
                 citations=item.citations,
             )
             for item in questions
@@ -94,14 +100,15 @@ async def create_mock(
     exam_id: UUID, request: Request, current_user: WorkspaceWriteUser, session: SessionDependency
 ) -> MockExamResponse:
     try:
-        async with session.begin():
-            mock, questions = await generate_mock(
-                session, current_user.id, exam_id, request.app.state.settings
-            )
+        mock, questions = await generate_mock(
+            session, current_user.id, exam_id, request.app.state.settings
+        )
     except ExamNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Exam not found") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except AIServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return mock_response(mock, questions)
 
 
@@ -180,12 +187,22 @@ async def submit(
     session: SessionDependency,
 ) -> AttemptResultResponse:
     try:
-        async with session.begin():
-            attempt = await submit_attempt(
-                session, current_user.id, attempt_id, request.app.state.settings
-            )
+        attempt = await submit_attempt(
+            session, current_user.id, attempt_id, request.app.state.settings
+        )
     except (AttemptNotFoundError, MockNotFoundError, ExamNotFoundError) as exc:
         raise HTTPException(status_code=404, detail="Attempt not found") from exc
+    except AIServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    assert (
+        attempt.score is not None
+        and attempt.duration_seconds is not None
+        and attempt.submitted_at is not None
+    )
+    return result_response(attempt)
+
+
+def result_response(attempt: Attempt) -> AttemptResultResponse:
     assert (
         attempt.score is not None
         and attempt.duration_seconds is not None
@@ -198,11 +215,35 @@ async def submit(
         score=attempt.score,
         max_score=attempt.max_score,
         percentage=percentage,
-        passed=percentage >= 50,
+        passed=bool(attempt.result.get("passed", percentage >= 50)),
         duration_seconds=attempt.duration_seconds,
         submitted_at=attempt.submitted_at,
         feedback=str(attempt.result.get("feedback", "")),
+        evaluator=str(attempt.result.get("evaluator", "deterministic:local-v2")),
+        question_results=[
+            QuestionResultResponse.model_validate(item)
+            for item in attempt.result.get("question_results", [])
+        ],
+        section_results=[
+            SectionResultResponse.model_validate(item)
+            for item in attempt.result.get("section_results", [])
+        ],
     )
+
+
+@router.get("/attempts/{attempt_id}/result")
+async def read_result(
+    attempt_id: UUID,
+    current_user: WorkspaceReadUser,
+    session: SessionDependency,
+) -> AttemptResultResponse:
+    try:
+        attempt, _, _, _ = await get_attempt(session, current_user.id, attempt_id)
+    except (AttemptNotFoundError, MockNotFoundError, ExamNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail="Attempt not found") from exc
+    if attempt.status.value != "evaluated":
+        raise HTTPException(status_code=409, detail="Attempt has not been evaluated")
+    return result_response(attempt)
 
 
 def summary_response(attempt: Attempt) -> AttemptSummaryResponse:
@@ -221,6 +262,7 @@ def summary_response(attempt: Attempt) -> AttemptSummaryResponse:
         duration_seconds=attempt.duration_seconds,
         submitted_at=attempt.submitted_at,
         feedback=str(attempt.result.get("feedback", "")),
+        evaluator=str(attempt.result.get("evaluator", "deterministic:local-v2")),
     )
 
 
