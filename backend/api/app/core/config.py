@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     vertex_embedding_model: str = "gemini-embedding-001"
     vertex_embedding_dimensions: int = Field(default=1536, ge=256, le=3072)
     ai_enabled: bool = True
+    ai_request_timeout_seconds: float = Field(default=90, ge=5, le=300)
+    ai_validation_retries: int = Field(default=1, ge=0, le=2)
     retrieval_chunk_limit: int = Field(default=12, ge=1, le=30)
     cors_origins: list[str] = Field(
         default_factory=lambda: [
