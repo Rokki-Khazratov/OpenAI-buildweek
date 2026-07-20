@@ -3,11 +3,15 @@
 The backend implements the P0 product loop plus the P1 artifact-ingestion foundation: application startup, structured logging, request IDs,
 health endpoints, asynchronous PostgreSQL sessions, migrations, authentication, user profile
 operations, ownership-protected Subject CRUD, multiple Exams per Subject, Classes scoped to an
-entire Subject or selected Exams, durable Exam configuration, deterministic mock generation,
-attempt autosave/submission, result history, basic statistics, private direct-to-object-storage
+entire Subject or selected Exams, versioned source-grounded blueprint extraction and approval,
+validated mock generation, attempt autosave/submission, rubric evaluation, result history, basic statistics, private direct-to-object-storage
 uploads, durable background processing, and deterministic PDF/DOCX/TXT parsing and chunking.
 
-Embeddings, owned-exam vector retrieval, structured grounded mock generation, source citations, AI evaluation, and weak-topic adaptation are implemented with Vertex AI and `gemini-3.5-flash` behind `APP_VERTEX_PROJECT`. Authentication uses Google Application Default Credentials. Without Vertex configuration the deterministic P0 behavior remains active. OCR and advanced cohort analytics remain deferred.
+Embeddings, owned-exam vector retrieval, structured blueprint extraction, grounded mock generation,
+source citations, and rubric evaluation are implemented with Vertex AI and `gemini-3.5-flash`
+behind a provider-neutral AI interface. Authentication uses Google Application Default Credentials.
+Without Vertex configuration the deterministic fallback remains active. OCR, weak-topic adaptation,
+and advanced cohort analytics remain deferred.
 
 ## Implemented API
 
@@ -24,12 +28,18 @@ Embeddings, owned-exam vector retrieval, structured grounded mock generation, so
 - `GET/PATCH/DELETE /api/v1/exams/{exam_id}`
 - `POST/GET /api/v1/subjects/{subject_id}/classes`
 - `GET/PATCH/DELETE /api/v1/classes/{class_id}`
+- `POST /api/v1/exams/{exam_id}/blueprints/extractions`
+- `GET /api/v1/exams/{exam_id}/blueprints/current`
+- `PATCH /api/v1/blueprints/{blueprint_id}`
+- `POST /api/v1/blueprints/{blueprint_id}/approve`
+- `POST /api/v1/blueprints/{blueprint_id}/retry`
 - `POST /api/v1/exams/{exam_id}/mocks`
 - `GET /api/v1/mocks/{mock_id}`
 - `POST /api/v1/mocks/{mock_id}/attempts`
 - `GET /api/v1/attempts/{attempt_id}`
 - `PUT /api/v1/attempts/{attempt_id}/responses/{question_id}`
 - `POST /api/v1/attempts/{attempt_id}/submit`
+- `GET /api/v1/attempts/{attempt_id}/result`
 - `GET /api/v1/exams/{exam_id}/attempts`
 - `GET /api/v1/exams/{exam_id}/statistics`
 - `POST /api/v1/exams/{exam_id}/artifacts/uploads`
@@ -79,6 +89,13 @@ With the full Compose stack running, the real storage/queue smoke test is:
 
 ```bash
 node ../scripts/p1-artifact-smoke.mjs
+```
+
+The full live Vertex smoke test covers upload, blueprint extraction and approval, mock generation,
+attempt submission, and detailed evaluation:
+
+```bash
+node ../scripts/vertex-sandbox-smoke.mjs
 ```
 
 For a rich local frontend workspace, run `node ../scripts/seed-local-demo.mjs`.

@@ -16,6 +16,8 @@ class MockQuestionResponse(BaseModel):
     prompt: str
     points: int
     topic: str | None = None
+    skill_ids: list[str] = Field(default_factory=list)
+    difficulty: str = "matched"
     citations: list[dict[str, str | int | None]] = Field(default_factory=list)
 
 
@@ -27,6 +29,7 @@ class MockExamResponse(BaseModel):
     instructions: str
     duration_minutes: int
     max_score: int
+    generation_metadata: dict[str, object] = Field(default_factory=dict)
     questions: list[MockQuestionResponse]
 
 
@@ -54,6 +57,39 @@ class ResponseSaveRequest(BaseModel):
     version: int | None = Field(default=None, ge=1)
 
 
+class RubricDimensionResult(BaseModel):
+    dimension_id: str
+    awarded_points: int
+    max_points: int
+    reason: str
+    answer_evidence: list[str] = Field(default_factory=list)
+
+
+class QuestionResultResponse(BaseModel):
+    question_id: UUID
+    section_id: str
+    question_number: int
+    prompt: str
+    question_type: str
+    skill_ids: list[str]
+    awarded_points: int
+    max_points: int
+    normalized_score: float
+    strategy: str
+    feedback: dict[str, str]
+    dimension_scores: list[RubricDimensionResult]
+    source_evidence: list[dict[str, str | int | None]]
+    confidence: float
+    flags: list[str]
+
+
+class SectionResultResponse(BaseModel):
+    section_id: str
+    awarded_points: int
+    max_points: int
+    percentage: int
+
+
 class AttemptResultResponse(BaseModel):
     attempt_id: UUID
     exam_id: UUID
@@ -64,6 +100,9 @@ class AttemptResultResponse(BaseModel):
     duration_seconds: int
     submitted_at: datetime
     feedback: str
+    evaluator: str
+    question_results: list[QuestionResultResponse] = Field(default_factory=list)
+    section_results: list[SectionResultResponse] = Field(default_factory=list)
 
 
 class AttemptSummaryResponse(AttemptResultResponse):

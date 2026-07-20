@@ -132,6 +132,11 @@ async def create_exam(client: AsyncClient, headers: dict[str, str]) -> str:
                     "points": 10,
                 }
             ],
+            "rules": {
+                "durationMinutes": 10,
+                "totalPoints": 10,
+                "passPercentage": 50,
+            },
         },
     )
     return cast(str, exam.json()["id"])
@@ -208,6 +213,113 @@ async def test_artifact_upload_process_summary_isolation_and_delete(
     assert artifact_harness.storage.objects == {}
     async with artifact_harness.database.session() as session:
         assert await session.scalar(select(Artifact).where(Artifact.id == artifact_id)) is None
+
+
+@pytest.mark.integration
+async def test_blueprint_review_generation_and_detailed_evaluation_flow(
+    artifact_harness: ArtifactHarness,
+) -> None:
+    headers = await auth_headers(artifact_harness.client, "blueprint-owner@example.com")
+    exam_id = await create_exam(artifact_harness.client, headers)
+    content = (
+        b"Part A contains one open response worth ten points in ten minutes. "
+        b"Students must explain the central concept with evidence. " * 50
+    )
+    upload = await artifact_harness.client.post(
+        f"/api/v1/exams/{exam_id}/artifacts/uploads",
+        headers=headers,
+        json={
+            "filename": "past-exam.txt",
+            "kind": "past_exam",
+            "media_type": "text/plain",
+            "size_bytes": len(content),
+        },
+    )
+    artifact_id = upload.json()["artifact"]["id"]
+    artifact_harness.storage.put(content, "text/plain")
+    completed = await artifact_harness.client.post(
+        f"/api/v1/artifacts/{artifact_id}/complete", headers=headers
+    )
+    assert completed.status_code == 200, completed.text
+    async with artifact_harness.database.session() as session:
+        async with session.begin():
+            job = await session.scalar(
+                select(ArtifactProcessingJob).where(
+                    ArtifactProcessingJob.artifact_id == artifact_id
+                )
+            )
+            assert job is not None
+            await process_job(
+                session,
+                artifact_harness.storage,
+                artifact_harness.settings,
+                job.id,
+                worker_id="pytest-blueprint",
+            )
+
+    extracted = await artifact_harness.client.post(
+        f"/api/v1/exams/{exam_id}/blueprints/extractions",
+        headers={**headers, "Idempotency-Key": "blueprint-flow-v1"},
+        json={"artifact_ids": [artifact_id]},
+    )
+    assert extracted.status_code == 201, extracted.text
+    assert extracted.json()["status"] == "draft"
+    assert extracted.json()["content"]["evidence"][0]["artifact_name"] == "past-exam.txt"
+
+    repeated = await artifact_harness.client.post(
+        f"/api/v1/exams/{exam_id}/blueprints/extractions",
+        headers={**headers, "Idempotency-Key": "blueprint-flow-v1"},
+        json={"artifact_ids": [artifact_id]},
+    )
+    assert repeated.json()["id"] == extracted.json()["id"]
+
+    approved = await artifact_harness.client.post(
+        f"/api/v1/blueprints/{extracted.json()['id']}/approve", headers=headers
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "approved"
+
+    mock = await artifact_harness.client.post(f"/api/v1/exams/{exam_id}/mocks", headers=headers)
+    assert mock.status_code == 201, mock.text
+    assert mock.json()["max_score"] == 10
+    assert mock.json()["questions"][0]["skill_ids"]
+    attempt = await artifact_harness.client.post(
+        f"/api/v1/mocks/{mock.json()['id']}/attempts", headers=headers
+    )
+    attempt_id = attempt.json()["id"]
+    question_id = mock.json()["questions"][0]["id"]
+    saved = await artifact_harness.client.put(
+        f"/api/v1/attempts/{attempt_id}/responses/{question_id}",
+        headers=headers,
+        json={
+            "answer": "This complete response explains the central concept with clear evidence.",
+            "flagged": False,
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    result = await artifact_harness.client.post(
+        f"/api/v1/attempts/{attempt_id}/submit", headers=headers
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["score"] == 10
+    assert result.json()["question_results"][0]["normalized_score"] == 1
+    assert result.json()["question_results"][0]["dimension_scores"]
+    assert result.json()["section_results"][0]["percentage"] == 100
+    persisted = await artifact_harness.client.get(
+        f"/api/v1/attempts/{attempt_id}/result", headers=headers
+    )
+    assert persisted.json() == result.json()
+
+    deleted = await artifact_harness.client.delete(
+        f"/api/v1/artifacts/{artifact_id}", headers=headers
+    )
+    assert deleted.status_code == 204
+    current = await artifact_harness.client.get(
+        f"/api/v1/exams/{exam_id}/blueprints/current", headers=headers
+    )
+    assert current.json()["status"] == "stale"
+    blocked = await artifact_harness.client.post(f"/api/v1/exams/{exam_id}/mocks", headers=headers)
+    assert blocked.status_code == 422
 
 
 def test_parsers_and_chunking_are_deterministic() -> None:

@@ -4,20 +4,23 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  CircleGauge,
   Clock3,
+  FileSearch,
   Flag,
   Save,
   Send,
   Sparkles,
+  ShieldCheck,
   Wifi,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Brand } from "@/components/layout/brand";
 import { Button } from "@/components/ui/button";
-import { generateMock, getAttempt, saveAttemptResponse, startAttempt, submitAttempt, type AttemptDto } from "@/features/attempts/api";
+import { generateMock, getAttempt, getAttemptResult, saveAttemptResponse, startAttempt, submitAttempt, type AttemptDto, type ResultDto } from "@/features/attempts/api";
 import { useDemo } from "@/features/demo/demo-provider";
 import type { ExamAttempt } from "@/features/exams/types";
 
@@ -28,12 +31,16 @@ type Question = {
   prompt: string;
   points: number;
   type: string;
+  skillIds: string[];
+  difficulty: string;
   citations: Array<{
     chunk_id: string;
     artifact_id?: string;
     page_number?: number | null;
   }>;
 };
+
+type DisplayResult = ExamAttempt & { evaluation?: ResultDto };
 
 export function ExamRun({ examId }: { examId: string }) {
   const { exams, loading, addAttempt, refreshExamAttempts } = useDemo();
@@ -47,7 +54,7 @@ export function ExamRun({ examId }: { examId: string }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [flagged, setFlagged] = useState<string[]>([]);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
-  const [result, setResult] = useState<ExamAttempt | null>(null);
+  const [result, setResult] = useState<DisplayResult | null>(null);
   const [remoteQuestions, setRemoteQuestions] = useState<Question[] | null>(
     null,
   );
@@ -77,6 +84,8 @@ export function ExamRun({ examId }: { examId: string }) {
             prompt: questionPrompt(section.title, section.questionType, index),
             points: Math.round(section.points / section.questionCount),
             type: section.questionType,
+            skillIds: [],
+            difficulty: "matched",
             citations: [],
           }),
         ),
@@ -85,7 +94,7 @@ export function ExamRun({ examId }: { examId: string }) {
   );
   const questions = remoteQuestions ?? localQuestions;
 
-  function hydrateAttempt(attempt: AttemptDto) {
+  const hydrateAttempt = useCallback((attempt: AttemptDto) => {
     setAttemptId(attempt.id);
     setRemoteQuestions(
       attempt.mock_exam.questions.map((question) => ({
@@ -95,6 +104,8 @@ export function ExamRun({ examId }: { examId: string }) {
         prompt: question.prompt,
         points: question.points,
         type: question.question_type,
+        skillIds: question.skill_ids ?? [],
+        difficulty: question.difficulty ?? "matched",
         citations: question.citations ?? [],
       })),
     );
@@ -115,7 +126,22 @@ export function ExamRun({ examId }: { examId: string }) {
       Math.max(0, attempt.mock_exam.duration_minutes * 60 - elapsed),
     );
     setStarted(attempt.status === "in_progress");
-  }
+    if (attempt.status === "evaluated") {
+      void getAttemptResult(attempt.id).then((evaluation) => {
+        setResult({
+          id: attempt.id,
+          examId,
+          score: evaluation.score,
+          maxScore: evaluation.max_score,
+          durationMinutes: Math.max(1, Math.ceil(evaluation.duration_seconds / 60)),
+          completedAt: new Date(evaluation.submitted_at).toLocaleString("en-GB"),
+          feedback: evaluation.feedback,
+          answers: Object.fromEntries(attempt.responses.map((item) => [item.question_id, item.answer])),
+          evaluation,
+        });
+      }).catch(() => setError("The evaluated result could not be loaded."));
+    }
+  }, [examId]);
 
   useEffect(() => {
     if (demoMode) return;
@@ -128,7 +154,7 @@ export function ExamRun({ examId }: { examId: string }) {
       .catch(() =>
         !requestedAttempt && window.localStorage.removeItem(`examtwin.activeAttempt.${examId}`),
       );
-  }, [demoMode, examId, searchParams]);
+  }, [demoMode, examId, hydrateAttempt, searchParams]);
 
   useEffect(() => {
     if (!started || result || secondsLeft <= 0) return;
@@ -224,7 +250,7 @@ export function ExamRun({ examId }: { examId: string }) {
           answers,
         };
         window.localStorage.removeItem(`examtwin.activeAttempt.${exam.id}`);
-        setResult(attempt);
+        setResult({ ...attempt, evaluation: saved });
         setConfirmSubmit(false);
         void refreshExamAttempts(exam.id).catch(() => {
           // History refreshes on its next load; the submitted result is already durable.
@@ -274,7 +300,7 @@ export function ExamRun({ examId }: { examId: string }) {
     setConfirmSubmit(false);
   }
 
-  if (!started)
+  if (!started && !result)
     return (
       <div className="min-h-dvh bg-surface-raised text-ink">
         <header className="flex h-16 items-center border-b border-line bg-canvas px-5 sm:px-8">
@@ -375,11 +401,111 @@ export function ExamRun({ examId }: { examId: string }) {
               />
             </div>
             <div className="mt-7 rounded-[12px] bg-surface p-5">
-              <p className="text-sm font-semibold">Initial feedback</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold">Evaluation summary</p>
+                {result.evaluation && (
+                  <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                    <ShieldCheck size={13} className="text-success" /> {result.evaluation.evaluator}
+                  </span>
+                )}
+              </div>
               <p className="mt-2 text-sm leading-6 text-muted">
                 {result.feedback}
               </p>
             </div>
+            {result.evaluation?.section_results.length ? (
+              <section className="mt-7">
+                <div className="flex items-center gap-2">
+                  <CircleGauge size={16} className="text-signal" />
+                  <h2 className="text-sm font-semibold">Section performance</h2>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {result.evaluation.section_results.map((section) => {
+                    const label = exam.blueprint.find((item) => item.id === section.section_id)?.title ?? section.section_id;
+                    return (
+                      <div key={section.section_id} className="rounded-[11px] border border-line p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="truncate text-xs font-semibold">{label}</p>
+                          <span className="font-mono text-sm font-semibold">{section.percentage}%</span>
+                        </div>
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface">
+                          <div className="h-full rounded-full bg-signal" style={{ width: `${section.percentage}%` }} />
+                        </div>
+                        <p className="mt-2 text-[11px] text-muted">{section.awarded_points}/{section.max_points} points</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+            {result.evaluation?.question_results.length ? (
+              <section className="mt-8">
+                <div>
+                  <h2 className="text-sm font-semibold">Question review</h2>
+                  <p className="mt-1 text-xs text-muted">Rubric scores, verified evidence, and the next improvement for every response.</p>
+                </div>
+                <div className="mt-4 grid gap-4">
+                  {result.evaluation.question_results.map((question) => (
+                    <article key={question.question_id} className="overflow-hidden rounded-[13px] border border-line">
+                      <div className="flex flex-col gap-3 border-b border-line p-5 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+                            <span className="font-mono">Question {question.question_number}</span>
+                            <span>·</span>
+                            <span>{question.question_type}</span>
+                            {question.skill_ids.map((skill) => <span key={skill} className="rounded-full bg-signal-soft px-2 py-0.5 font-mono text-[10px] text-signal">{skill}</span>)}
+                          </div>
+                          <p className="mt-2 text-sm font-medium leading-6">{question.prompt}</p>
+                        </div>
+                        <div className="shrink-0 text-left sm:text-right">
+                          <p className="font-mono text-2xl font-semibold">{question.awarded_points}/{question.max_points}</p>
+                          <p className={`mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${question.confidence >= 0.75 ? "text-success" : "text-warning"}`}>{Math.round(question.confidence * 100)}% confidence</p>
+                        </div>
+                      </div>
+                      <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
+                        <div className="p-5">
+                          {question.dimension_scores.length ? (
+                            <div className="grid gap-3">
+                              {question.dimension_scores.map((dimension) => (
+                                <div key={dimension.dimension_id} className="rounded-[9px] bg-surface p-4">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="text-xs font-semibold capitalize">{dimension.dimension_id.replaceAll("-", " ")}</p>
+                                    <span className="font-mono text-xs font-semibold">{dimension.awarded_points}/{dimension.max_points}</span>
+                                  </div>
+                                  <p className="mt-2 text-xs leading-5 text-muted">{dimension.reason}</p>
+                                  {dimension.answer_evidence.map((quote) => <blockquote key={quote} className="mt-2 border-l-2 border-signal/30 pl-3 text-xs italic leading-5 text-ink">“{quote}”</blockquote>)}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="mt-4 grid gap-2 text-xs leading-5">
+                            {question.feedback.strength && <p><strong>Strength:</strong> <span className="text-muted">{question.feedback.strength}</span></p>}
+                            {question.feedback.improvement && <p><strong>Improve:</strong> <span className="text-muted">{question.feedback.improvement}</span></p>}
+                            {question.feedback.next_step && <p><strong>Next step:</strong> <span className="text-muted">{question.feedback.next_step}</span></p>}
+                          </div>
+                        </div>
+                        <aside className="border-t border-line bg-surface-raised p-5 lg:border-l lg:border-t-0">
+                          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted"><FileSearch size={14} /> Source evidence</p>
+                          {question.source_evidence.length ? (
+                            <div className="mt-3 grid gap-3">
+                              {question.source_evidence.map((source, index) => (
+                                <div key={`${source.chunk_id}-${index}`} className="rounded-[9px] border border-line bg-white p-3">
+                                  <p className="text-[10px] font-semibold text-muted">{source.artifact_name ?? "Exam source"}{source.page_number ? ` · p. ${source.page_number}` : ""}</p>
+                                  <p className="mt-2 text-xs leading-5">“{source.quote}”</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-xs leading-5 text-muted">No source quote was required for this deterministic result.</p>
+                          )}
+                          {question.flags.length ? <p className="mt-4 flex items-start gap-2 text-xs text-warning"><AlertTriangle size={13} className="mt-0.5 shrink-0" /> {question.flags.join(", ")}</p> : null}
+                        </aside>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             <div className="mt-8 flex flex-wrap justify-end gap-2">
               <Link
                 href={`/exams/${exam.id}?tab=history`}
