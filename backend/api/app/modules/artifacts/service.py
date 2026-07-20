@@ -148,6 +148,9 @@ async def complete_upload(
         idempotency_key=f"{artifact.id}:ingest:v1",
     )
     session.add(job)
+    from app.modules.blueprints.service import mark_exam_blueprints_stale
+
+    await mark_exam_blueprints_stale(session, artifact.exam_id)
     await session.flush()
     return artifact, job
 
@@ -194,6 +197,9 @@ async def delete_artifact(
 ) -> None:
     artifact = await get_owned_artifact(session, owner_id, artifact_id)
     artifact.processing_status = ProcessingStatus.DELETING
+    from app.modules.blueprints.service import mark_exam_blueprints_stale
+
+    await mark_exam_blueprints_stale(session, artifact.exam_id)
     await session.flush()
     await to_thread.run_sync(storage.delete, artifact.storage_key)
     await session.delete(artifact)
