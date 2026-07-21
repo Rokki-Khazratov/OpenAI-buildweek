@@ -31,24 +31,20 @@ export type ClassMemberDto = {
 export type ClassDashboardDto = {
   class_id: string;
   exam_id: string | null;
+  model_version: string;
+  privacy_threshold: number;
+  suppressed: boolean;
+  suppression_reason: string | null;
   member_count: number;
   active_learners: number;
+  eligible_learners: number;
   total_attempts: number;
-  average_percentage: number | null;
-  readiness_percentage: number | null;
+  median_readiness_index: number | null;
   readiness_coverage: number;
-  pass_rate: number | null;
-  weak_skills: Array<{ skill_id: string; percentage: number; support: number }>;
-  participants: Array<{
-    user_id: string;
-    display_name: string;
-    role: "owner" | "member";
-    attempts: number;
-    average_percentage: number | null;
-    readiness_percentage: number | null;
-    last_activity_at: string | null;
-    weak_skill_ids: string[];
-  }>;
+  readiness_confidence_distribution: Record<"low_evidence" | "developing" | "established", number>;
+  low_evidence_percentage: number | null;
+  weak_skills: Array<{ skill_id: string; label: string; mastery_percentage: number; confidence: number; support: number; evidence_count: number; signal: "confirmed_gap" | "low_evidence" | "healthy" }>;
+  recommended_action: string | null;
 };
 
 export const listClassMembers = (id: string) =>
@@ -64,5 +60,10 @@ export const getClassDashboard = (id: string, examId?: string) =>
   apiFetch<ClassDashboardDto>(
     `/classes/${id}/dashboard${examId ? `?exam_id=${examId}` : ""}`,
   );
+export const recordCohortAnalyticsEvent = (id: string, eventName: "dashboard_viewed" | "recommendation_accepted" | "adaptive_mock_started" | "adaptive_mock_completed") =>
+  apiFetch<void>(`/classes/${id}/analytics/events`, {
+    method: "POST",
+    body: JSON.stringify({ event_name: eventName, properties: {} }),
+  });
 
 export type { StudyClass };

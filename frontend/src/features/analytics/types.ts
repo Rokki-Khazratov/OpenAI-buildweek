@@ -24,6 +24,7 @@ export type SkillAnalytics = {
   trend: Trend;
   trend_delta: number | null;
   latest_observed_at: string | null;
+  timing_signal: "not_used" | "typical" | "slow_but_correct";
 };
 
 export type Recommendation = {
@@ -63,7 +64,12 @@ export type ExamAnalytics = {
     reason: string;
     confidence_level: ConfidenceLevel;
     recommended_difficulty: "matched";
+    policy_version: string;
+    target_reasons: Record<string, string>;
+    exploration_share: number;
   };
+  snapshot_id?: string | null;
+  input_revision_hash?: string | null;
 };
 
 export type AnalyticsOverview = {

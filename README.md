@@ -22,10 +22,10 @@ The repository contains a working, API-backed P0 product, the complete P1 artifa
 | Nested Exam CRUD | Implemented |
 | Exam data, blueprint, scenario and rules editor | Persisted through the API with optimistic configuration versions |
 | Exam Run simulation | Backend-generated mock, durable attempt, autosave, reload/resume and immutable submit |
-| Personal statistics and analytics | Evidence-based mastery, confidence, trends, readiness, recommendations and adaptive targets implemented |
+| Personal statistics and analytics | `analytics.v2`, canonical observations, versioned snapshots, data-quality gates, trends, readiness and `adaptive.v2` implemented |
 | Library publishing and cloning | Implemented with safe public snapshots and independent private clones |
-| Class CRUD, membership and progress | Implemented with exam scoping and privacy-safe cohort summaries |
-| PostgreSQL models and migrations | Implemented for the complete P0 domain, including mocks, questions, attempts and responses |
+| Class CRUD, membership and progress | Implemented with owner-only aggregate analytics, small-group suppression, comparable exam scope and experiment events |
+| PostgreSQL models and migrations | Implemented through D3, including observations, snapshots, taxonomy, shadow results and cohort events |
 | Artifact ingestion and retrieval | Implemented: private upload, parsing, chunking, embeddings and owned-exam vector retrieval |
 | Vertex AI generation and evaluation | Implemented with `gemini-3.5-flash` when `APP_VERTEX_PROJECT` is configured; deterministic fallback remains available |
 | Background worker pipeline | Implemented with durable Dramatiq/Redis jobs and restart-safe retries |
@@ -324,14 +324,17 @@ PostgreSQL integration tests validate authentication, ownership isolation, CRUD,
 
 ## Remaining release work
 
-1. Deploy the complete stack and document seeded judge access.
-2. Capture a successful live Vertex smoke result for the release environment.
-3. Add advanced cohort analytics after the personal adaptive loop is frozen.
+1. Deploy the complete stack and configure judge credentials.
+2. Run the committed judge rehearsal in the final release environment.
+3. Freeze the release and capture the submission video.
 
 ## Further documentation
 
 - [Frontend guide](frontend/README.md)
 - [Backend guide](backend/api/README.md)
+- [Data Science D0–D3 acceptance plan](DATA_SCIENCE_D0_D3_PLAN.md)
+- [Analytics v2 model card](docs/analytics-v2-model-card.md)
+- [Judge demo runbook](docs/judge-demo-runbook.md)
 - [Research report](deep-research-report.md)
 
 ## License

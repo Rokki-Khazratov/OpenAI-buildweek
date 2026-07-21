@@ -26,6 +26,7 @@ class SkillAnalyticsResponse(BaseModel):
     trend: Literal["insufficient_data", "improving", "stable", "declining"]
     trend_delta: float | None
     latest_observed_at: datetime | None
+    timing_signal: Literal["not_used", "typical", "slow_but_correct"]
 
 
 class ReadinessResponse(BaseModel):
@@ -54,6 +55,9 @@ class AdaptiveAnalyticsResponse(BaseModel):
     reason: str
     confidence_level: Literal["low_evidence", "developing", "established"]
     recommended_difficulty: Literal["matched"] = "matched"
+    policy_version: str
+    target_reasons: dict[str, str] = Field(default_factory=dict)
+    exploration_share: float = Field(ge=0, le=1)
 
 
 class AnalyticsTrajectoryPointResponse(BaseModel):
@@ -76,6 +80,8 @@ class ExamAnalyticsResponse(BaseModel):
     trajectory: list[AnalyticsTrajectoryPointResponse]
     recommendations: list[RecommendationResponse]
     adaptive: AdaptiveAnalyticsResponse
+    snapshot_id: UUID | None = None
+    input_revision_hash: str | None = None
 
 
 class ExamAnalyticsSummaryResponse(BaseModel):
@@ -108,3 +114,40 @@ class AnalyticsOverviewResponse(BaseModel):
     exams: list[ExamAnalyticsSummaryResponse]
     next_action: RecommendationResponse | None
     recent_trajectory: list[GlobalTrajectoryPointResponse] = Field(default_factory=list)
+
+
+class AnalyticsRebuildResponse(BaseModel):
+    exam_id: UUID
+    observations_created: int
+    snapshot_id: UUID | None
+    input_revision_hash: str | None
+    model_version: str
+    equivalent_to_previous: bool | None
+
+
+class AnalyticsDataQualityIssue(BaseModel):
+    code: str
+    severity: Literal["warning", "error"]
+    count: int
+    explanation: str
+
+
+class AnalyticsDataQualityResponse(BaseModel):
+    exam_id: UUID
+    checked_at: datetime
+    accepted_observations: int
+    rejected_observations: int
+    unknown_skill_rate: float
+    issues: list[AnalyticsDataQualityIssue]
+    safe_to_publish: bool
+
+
+class AnalyticsOperationsResponse(BaseModel):
+    model_version: str
+    observation_count: int
+    snapshot_count: int
+    low_evidence_profile_share: float
+    unknown_skill_rate: float
+    latest_compute_latency_ms: float
+    recommendation_action_distribution: dict[str, int]
+    shadow_comparison_count: int

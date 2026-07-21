@@ -1,6 +1,7 @@
 """Class CRUD schemas."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -66,30 +67,46 @@ class ClassMemberResponse(BaseModel):
 
 class ClassSkillMetric(BaseModel):
     skill_id: str
-    percentage: float
+    label: str
+    mastery_percentage: float
+    confidence: float
     support: int
-
-
-class ClassParticipantMetric(BaseModel):
-    user_id: UUID
-    display_name: str
-    role: ClassMemberRole
-    attempts: int
-    average_percentage: float | None
-    readiness_percentage: float | None
-    last_activity_at: datetime | None
-    weak_skill_ids: list[str]
+    evidence_count: int
+    signal: Literal["confirmed_gap", "low_evidence", "healthy"]
 
 
 class ClassDashboardResponse(BaseModel):
     class_id: UUID
     exam_id: UUID | None
+    model_version: str
+    privacy_threshold: int
+    suppressed: bool
+    suppression_reason: str | None
     member_count: int
     active_learners: int
+    eligible_learners: int
     total_attempts: int
-    average_percentage: float | None
-    readiness_percentage: float | None
+    median_readiness_index: float | None
     readiness_coverage: float
-    pass_rate: float | None
+    readiness_confidence_distribution: dict[str, int]
+    low_evidence_percentage: float | None
     weak_skills: list[ClassSkillMetric]
-    participants: list[ClassParticipantMetric]
+    recommended_action: str | None
+
+
+class CohortAnalyticsEventRequest(BaseModel):
+    event_name: Literal[
+        "dashboard_viewed",
+        "recommendation_accepted",
+        "adaptive_mock_started",
+        "adaptive_mock_completed",
+    ]
+    properties: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+
+class CohortExperimentSummaryResponse(BaseModel):
+    class_id: UUID
+    model_version: str
+    event_counts: dict[str, int]
+    recommendation_acceptance_rate: float | None
+    adaptive_completion_rate: float | None

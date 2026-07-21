@@ -22,17 +22,17 @@ const listAttemptsMock = vi.mocked(listExamAttempts);
 const getAnalyticsMock = vi.mocked(getExamAnalytics);
 
 const emptyAnalytics: ExamAnalytics = {
-  model_version: "analytics.v1",
+  model_version: "analytics.v2",
   computed_at: "2026-07-21T10:00:00Z",
   exam_id: "exam-1",
   exam_title: "Exam",
   attempt_ids: [],
   constants: { recency_half_life_days: 30, coverage_scale: 3, readiness_uncertainty_penalty: 15 },
   readiness: { index: null, raw_mastery: null, confidence: 0, coverage: 0, status: "no_data", pass_threshold: 50, explanation: "Complete a mock to create the first readiness signal." },
-  skills: [{ skill_id: "core", label: "Core knowledge", blueprint_weight: 1, mastery: null, confidence: 0, confidence_level: "low_evidence", evidence_count: 0, effective_evidence: 0, attempt_count: 0, trend: "insufficient_data", trend_delta: null, latest_observed_at: null }],
+  skills: [{ skill_id: "core", label: "Core knowledge", blueprint_weight: 1, mastery: null, confidence: 0, confidence_level: "low_evidence", evidence_count: 0, effective_evidence: 0, attempt_count: 0, trend: "insufficient_data", trend_delta: null, latest_observed_at: null, timing_signal: "not_used" }],
   trajectory: [],
   recommendations: [{ exam_id: "exam-1", action: "run_full_mock", title: "Complete a diagnostic mock", reason: "No evidence yet.", target_skill_ids: [], confidence: 0, priority: 1 }],
-  adaptive: { eligible: false, target_skill_ids: [], reason: "Complete a diagnostic mock first.", confidence_level: "low_evidence", recommended_difficulty: "matched" },
+  adaptive: { eligible: false, target_skill_ids: [], reason: "Complete a diagnostic mock first.", confidence_level: "low_evidence", recommended_difficulty: "matched", policy_version: "adaptive.v2", target_reasons: {}, exploration_share: 0 },
 };
 
 const zeroStatistics: ExamStatisticsDto = {

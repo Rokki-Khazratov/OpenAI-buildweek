@@ -1,0 +1,7 @@
+[
+  {"name":"improving","scores":[0.35,0.48,0.65,0.8],"expected_trend":"improving"},
+  {"name":"declining","scores":[0.9,0.78,0.55,0.4],"expected_trend":"declining"},
+  {"name":"stable","scores":[0.7,0.68,0.72,0.71],"expected_trend":"stable"},
+  {"name":"sparse_high","scores":[0.95],"expected_confidence":"low_evidence"},
+  {"name":"noisy_single","scores":[0.75,0.78,0.2,0.76],"expected_status_not":"ready"}
+]

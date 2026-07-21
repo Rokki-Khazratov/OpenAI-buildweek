@@ -14,6 +14,8 @@ from app.api.schemas.classroom import (
     ClassMemberResponse,
     ClassResponse,
     ClassUpdateRequest,
+    CohortAnalyticsEventRequest,
+    CohortExperimentSummaryResponse,
 )
 from app.db.dependencies import get_session
 from app.modules.auth.dependencies import WorkspaceReadUser, WorkspaceWriteUser
@@ -25,11 +27,13 @@ from app.modules.classes.service import (
     InvalidClassScopeError,
     add_class_member,
     class_dashboard,
+    cohort_experiment_summary,
     create_class,
     delete_class,
     get_class,
     list_class_members,
     list_classes,
+    record_cohort_event,
     remove_class_member,
     update_class,
 )
@@ -206,3 +210,37 @@ async def dashboard(
         raise HTTPException(status_code=404, detail="Class not found") from exc
     except InvalidClassScopeError as exc:
         raise invalid_scope(exc) from exc
+
+
+@router.post("/classes/{class_id}/analytics/events", status_code=status.HTTP_204_NO_CONTENT)
+async def cohort_event(
+    class_id: UUID,
+    payload: CohortAnalyticsEventRequest,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+    response: Response,
+) -> None:
+    try:
+        async with session.begin():
+            await record_cohort_event(
+                session,
+                current_user.id,
+                class_id,
+                payload.event_name,
+                payload.properties,
+            )
+    except ClassNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Class not found") from exc
+    response.status_code = status.HTTP_204_NO_CONTENT
+
+
+@router.get("/classes/{class_id}/analytics/experiments")
+async def cohort_experiments(
+    class_id: UUID,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+) -> CohortExperimentSummaryResponse:
+    try:
+        return await cohort_experiment_summary(session, current_user.id, class_id)
+    except ClassNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Class not found") from exc

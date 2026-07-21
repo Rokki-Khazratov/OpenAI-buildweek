@@ -5,6 +5,19 @@
 Этот документ — следующий исполнимый Data Science roadmap, построенный от состояния
 `main` после M6 и персонального `analytics.v1`.
 
+> **Execution update (2026-07-21):** ограничение hackathon timebox снято по решению
+> владельца проекта. D0–D3 реализованы в ветке `codex/ds-d0-d3-complete`; этот документ
+> теперь служит acceptance contract и историей исходных ограничений.
+
+Текущий статус реализации:
+
+- **D0:** normal-mode golden seed, live Vertex proof, model card и judge runbook;
+- **D1:** `skill_observation.v1`, snapshots, rebuild, taxonomy, quality и operations;
+- **D2:** `analytics.v2`, `adaptive.v2`, frozen benchmark, difficulty/time guardrails,
+  shadow results и versioned generation metadata;
+- **D3:** owner-only aggregate cohort analytics, suppression, compatible single-exam
+  scope, experiment events и privacy-safe frontend.
+
 Он не повторяет уже выполненную работу. Текущая точка старта:
 
 ```text
@@ -28,8 +41,9 @@ D0 Release proof and freeze
 → D3 Privacy-safe cohort intelligence
 ```
 
-При оставшихся 3–4 часах хакатона выполняется только D0. D1–D3 нельзя начинать,
-пока D0 не закрыт полностью.
+Первоначальный timebox требовал выполнять только D0 до submission. После явного
+решения реализовать D0–D3 полностью этапы были выполнены последовательно: каждый
+следующий слой строится на contract предыдущего.
 
 ### Milestone scorecard
 
@@ -192,7 +206,7 @@ scripts/seed-ds-golden-flow.mjs
 Создать:
 
 ```text
-docs/analytics-v1-model-card.md
+docs/analytics-v2-model-card.md
 docs/judge-demo-runbook.md
 ```
 

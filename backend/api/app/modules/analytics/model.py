@@ -7,7 +7,8 @@ from datetime import UTC, date, datetime
 from typing import Literal
 from uuid import UUID
 
-MODEL_VERSION = "analytics.v1"
+MODEL_VERSION = "analytics.v2"
+POLICY_VERSION = "adaptive.v2"
 RECENCY_HALF_LIFE_DAYS = 30.0
 COVERAGE_SCALE = 3.0
 READINESS_UNCERTAINTY_PENALTY = 15.0
@@ -37,6 +38,8 @@ class SkillObservation:
     score: float
     point_share: float
     evaluation_confidence: float
+    difficulty: str = "matched"
+    duration_seconds: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +56,7 @@ class SkillMetric:
     trend: Trend
     trend_delta: float | None
     latest_observed_at: datetime | None
+    timing_signal: Literal["not_used", "typical", "slow_but_correct"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +89,17 @@ class AnalyticsResult:
     adaptive_target_skill_ids: list[str]
     adaptive_reason: str
     adaptive_confidence: ConfidenceLevel
+    policy_version: str
+    adaptive_target_reasons: dict[str, str]
+    exploration_share: float
+
+
+def difficulty_adjusted_score(item: SkillObservation) -> float:
+    """Apply a deliberately small, bounded correction to validated difficulty."""
+    correction = {"easier": -0.03, "easy": -0.03, "harder": 0.05, "hard": 0.05}.get(
+        item.difficulty.casefold(), 0.0
+    )
+    return clamp(item.score + correction)
 
 
 def recency_weight(observed_at: datetime, now: datetime) -> float:
@@ -150,6 +165,7 @@ def calculate_skill_metric(
             trend="insufficient_data",
             trend_delta=None,
             latest_observed_at=None,
+            timing_signal="not_used",
         )
     weighted_scores: list[tuple[float, float]] = []
     effective_evidence = 0.0
@@ -157,7 +173,10 @@ def calculate_skill_metric(
         recency = recency_weight(item.observed_at, now)
         evaluator = clamp(item.evaluation_confidence, 0.25, 1.0)
         weighted_scores.append(
-            (clamp(item.score), max(0.01, item.point_share) * evaluator * recency)
+            (
+                difficulty_adjusted_score(item),
+                max(0.01, item.point_share) * evaluator * recency,
+            )
         )
         effective_evidence += evaluator * recency
     mastery = _weighted_average(weighted_scores)
@@ -173,6 +192,17 @@ def calculate_skill_metric(
     freshness = recency_weight(latest, now)
     confidence = clamp(coverage * (0.6 + 0.4 * consistency) * (0.7 + 0.3 * freshness))
     trend, delta = _trend(observations)
+    timed = [item for item in observations if item.duration_seconds is not None]
+    timing_signal: Literal["not_used", "typical", "slow_but_correct"] = "not_used"
+    if timed:
+        timing_signal = "typical"
+        latest_timed = max(timed, key=lambda item: item.observed_at)
+        durations = sorted(item.duration_seconds or 0 for item in timed)
+        median = durations[len(durations) // 2]
+        if latest_timed.score >= 0.7 and (latest_timed.duration_seconds or 0) > max(
+            60, median * 1.5
+        ):
+            timing_signal = "slow_but_correct"
     return SkillMetric(
         skill_id=skill.skill_id,
         label=skill.label,
@@ -186,6 +216,7 @@ def calculate_skill_metric(
         trend=trend,
         trend_delta=delta,
         latest_observed_at=latest,
+        timing_signal=timing_signal,
     )
 
 
@@ -288,11 +319,30 @@ def calculate_analytics(
         )
         ranked.append((priority, metric))
     ranked.sort(key=lambda pair: (-pair[0], pair[1].label.casefold()))
-    targets = [
+    candidates = [
         metric
         for _, metric in ranked
         if metric.mastery is None or metric.mastery < 0.75 or metric.confidence < 0.35
-    ][:3]
+    ]
+    exploitation = [item for item in candidates if item.confidence >= 0.35]
+    exploration = [item for item in candidates if item.confidence < 0.35]
+    retention = [
+        item
+        for item in metrics
+        if item.mastery is not None
+        and item.mastery >= 0.75
+        and item.latest_observed_at is not None
+        and recency_weight(item.latest_observed_at, now) < 0.5
+    ]
+    targets: list[SkillMetric] = []
+    for pool in (exploitation[:2], exploration[:1], retention[:1], candidates):
+        for item in pool:
+            if item.skill_id not in {target.skill_id for target in targets}:
+                targets.append(item)
+            if len(targets) == 3:
+                break
+        if len(targets) == 3:
+            break
     recommendations: list[Recommendation] = []
     if readiness.status == "no_data":
         recommendations.append(
@@ -340,6 +390,22 @@ def calculate_analytics(
                 )
             )
     target_ids = [metric.skill_id for metric in targets] if readiness.status != "no_data" else []
+    target_reasons = {
+        metric.skill_id: (
+            "collect_evidence"
+            if metric.confidence < 0.35
+            else "retention_refresh"
+            if metric in retention
+            else "confirmed_gap"
+        )
+        for metric in targets
+    }
+    exploration_share = (
+        sum(reason == "collect_evidence" for reason in target_reasons.values())
+        / len(target_reasons)
+        if target_reasons
+        else 0.0
+    )
     adaptive_confidence: ConfidenceLevel = min(
         (item.confidence_level for item in targets),
         default="low_evidence",
@@ -361,4 +427,7 @@ def calculate_analytics(
         adaptive_target_skill_ids=target_ids,
         adaptive_reason=adaptive_reason,
         adaptive_confidence=adaptive_confidence,
+        policy_version=POLICY_VERSION,
+        adaptive_target_reasons=target_reasons,
+        exploration_share=round(exploration_share, 4),
     )

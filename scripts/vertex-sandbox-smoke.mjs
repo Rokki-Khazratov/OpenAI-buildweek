@@ -187,6 +187,28 @@ if (result.question_results.some((item) => !item.strategy || item.confidence < 0
   throw new Error(`Evaluation contract is invalid: ${JSON.stringify(result.question_results)}`);
 }
 
+const analytics = await request(`/exams/${exam.id}/analytics`, {}, token);
+if (analytics.model_version !== "analytics.v2" || analytics.readiness.index === null) {
+  throw new Error(`Analytics snapshot was not created: ${JSON.stringify(analytics)}`);
+}
+if (!analytics.adaptive.eligible || !analytics.adaptive.target_skill_ids.length) {
+  throw new Error(`Adaptive targets are missing: ${JSON.stringify(analytics.adaptive)}`);
+}
+const adaptiveMock = await request(
+  `/exams/${exam.id}/mocks`,
+  { method: "POST", body: JSON.stringify({ mode: "adaptive" }) },
+  token,
+);
+if (adaptiveMock.generation_metadata.generation_mode !== "adaptive") {
+  throw new Error(`Adaptive generation metadata is missing: ${JSON.stringify(adaptiveMock)}`);
+}
+if (adaptiveMock.generation_metadata.policy_version !== "adaptive.v2") {
+  throw new Error(`Adaptive policy version is missing: ${JSON.stringify(adaptiveMock.generation_metadata)}`);
+}
+if (adaptiveMock.generation_metadata.readiness_before !== analytics.readiness.index) {
+  throw new Error("Adaptive mock did not preserve readiness_before.");
+}
+
 console.log(JSON.stringify({
   status: "passed",
   sandbox_email: email,
@@ -198,6 +220,12 @@ console.log(JSON.stringify({
   attempt_id: attempt.id,
   score: `${result.score}/${result.max_score}`,
   evaluator: result.evaluator,
+  analytics_model_version: analytics.model_version,
+  readiness: analytics.readiness.index,
+  snapshot_id: analytics.snapshot_id,
+  adaptive_mock_id: adaptiveMock.id,
+  adaptive_targets: analytics.adaptive.target_skill_ids,
+  policy_version: adaptiveMock.generation_metadata.policy_version,
   questions: mock.questions.map((question) => ({
     id: question.id,
     prompt: question.prompt,

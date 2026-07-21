@@ -123,6 +123,9 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     learner_headers, learner_id = await register_and_login(
         client, "learner@example.com", "Student Lin"
     )
+    _, second_learner_id = await register_and_login(
+        client, "second.learner@example.com", "Student Noor"
+    )
     subject_response = await client.post(
         "/api/v1/subjects",
         headers=owner_headers,
@@ -264,6 +267,12 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     )
     assert added.status_code == 201, added.text
     assert "email" not in added.json()
+    second_added = await client.post(
+        f"/api/v1/classes/{class_id}/members",
+        headers=owner_headers,
+        json={"email": "second.learner@example.com"},
+    )
+    assert second_added.status_code == 201, second_added.text
     duplicate = await client.post(
         f"/api/v1/classes/{class_id}/members",
         headers=owner_headers,
@@ -315,7 +324,7 @@ async def test_library_clone_membership_and_dashboard_are_safe(
         await session.flush()
         mock_id = mock.id
         question_id = question.id
-        for user_id, score in ((owner_id, 8), (learner_id, 4)):
+        for user_id, score in ((owner_id, 8), (learner_id, 4), (second_learner_id, 6)):
             attempt = Attempt(
                 mock_exam_id=mock.id,
                 exam_id=exam_id,
@@ -352,22 +361,44 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     )
     assert dashboard.status_code == 200, dashboard.text
     metrics = dashboard.json()
-    assert metrics["member_count"] == 2
-    assert metrics["active_learners"] == 2
-    assert metrics["total_attempts"] == 2
-    assert metrics["average_percentage"] == 60
-    assert metrics["readiness_percentage"] == 60
+    assert metrics["model_version"] == "analytics.v2"
+    assert metrics["suppressed"] is False
+    assert metrics["member_count"] == 3
+    assert metrics["active_learners"] == 3
+    assert metrics["eligible_learners"] == 3
+    assert metrics["total_attempts"] == 3
+    assert metrics["median_readiness_index"] is not None
     assert metrics["readiness_coverage"] == 1
-    assert metrics["pass_rate"] == 50
-    assert metrics["weak_skills"] == [{"skill_id": "reasoning", "percentage": 60, "support": 2}]
+    assert metrics["readiness_confidence_distribution"]["low_evidence"] == 3
+    assert metrics["weak_skills"][0]["skill_id"] == "reasoning"
+    assert metrics["weak_skills"][0]["support"] == 3
+    assert "participants" not in metrics
     dashboard_text = dashboard.text.casefold()
     for private_value in ("answer", "feedback", "coaching", "excerpt", "email"):
         assert private_value not in dashboard_text
 
+    for event_name in ("dashboard_viewed", "recommendation_accepted"):
+        recorded = await client.post(
+            f"/api/v1/classes/{class_id}/analytics/events",
+            headers=owner_headers,
+            json={"event_name": event_name, "properties": {}},
+        )
+        assert recorded.status_code == 204
+    experiments = await client.get(
+        f"/api/v1/classes/{class_id}/analytics/experiments", headers=owner_headers
+    )
+    assert experiments.status_code == 200
+    assert experiments.json()["recommendation_acceptance_rate"] == 1
+    forbidden_experiments = await client.get(
+        f"/api/v1/classes/{class_id}/analytics/experiments", headers=learner_headers
+    )
+    assert forbidden_experiments.status_code == 404
+
     analytics = await client.get(f"/api/v1/exams/{exam_id}/analytics", headers=owner_headers)
     assert analytics.status_code == 200, analytics.text
     profile = analytics.json()
-    assert profile["model_version"] == "analytics.v1"
+    assert profile["model_version"] == "analytics.v2"
+    assert profile["adaptive"]["policy_version"] == "adaptive.v2"
     assert profile["readiness"]["status"] == "early_signal"
     assert profile["readiness"]["index"] is not None
     assert profile["skills"][0]["skill_id"] == "reasoning"
@@ -445,3 +476,25 @@ async def test_library_clone_membership_and_dashboard_are_safe(
         "new private answer excerpt",
     ):
         assert private_value not in updated_analytics.text.casefold()
+
+    rebuilt = await client.post(f"/api/v1/exams/{exam_id}/analytics/rebuild", headers=owner_headers)
+    assert rebuilt.status_code == 200, rebuilt.text
+    assert rebuilt.json()["observations_created"] == 2
+    assert rebuilt.json()["snapshot_id"]
+    repeated_rebuild = await client.post(
+        f"/api/v1/exams/{exam_id}/analytics/rebuild", headers=owner_headers
+    )
+    assert repeated_rebuild.status_code == 200
+    assert repeated_rebuild.json()["observations_created"] == 0
+    assert repeated_rebuild.json()["snapshot_id"] == rebuilt.json()["snapshot_id"]
+    quality = await client.get(
+        f"/api/v1/exams/{exam_id}/analytics/data-quality", headers=owner_headers
+    )
+    assert quality.status_code == 200
+    assert quality.json()["safe_to_publish"] is True
+    assert quality.json()["accepted_observations"] == 2
+    operations = await client.get("/api/v1/analytics/operations", headers=owner_headers)
+    assert operations.status_code == 200
+    assert operations.json()["observation_count"] == 2
+    assert operations.json()["snapshot_count"] >= 1
+    assert operations.json()["shadow_comparison_count"] >= 1
