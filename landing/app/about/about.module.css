@@ -21,8 +21,8 @@
 .card { background: #f8f7f0; border: 1px solid #d8d5c8; border-radius: 26px; padding: 18px; }
 .photo { position: relative; overflow: hidden; aspect-ratio: 1 / 1; border-radius: 17px; background: #20201a; }
 .image { object-fit: cover; object-position: 50% 33%; }
-.iliaImage { object-position: 50% 19%; }
-.bekImage { object-position: 50% 25%; }
+.iliaImage { object-fit: contain; object-position: 50% 50%; transform: scale(.78); }
+.bekImage { object-position: 50% 75%; }
 .placeholder { display: grid; place-items: center; background: repeating-linear-gradient(-45deg, #282820, #282820 10px, #24241d 10px, #24241d 20px); color: #c5f43f; text-align: center; font-size: 18px; line-height: 1.15; letter-spacing: -.03em; }
 .role { color: #4b39f7; margin-top: 22px; }
 .card h3 { font-size: clamp(28px, 3vw, 42px); letter-spacing: -.055em; margin: 9px 0 13px; }
