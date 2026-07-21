@@ -83,10 +83,10 @@ export function ExamAnalyticsPanel({ profile }: { profile: ExamAnalytics }) {
 function SkillRow({ skill, targeted }: { skill: SkillAnalytics; targeted: boolean }) {
   const TrendIcon = skill.trend === "improving" ? ArrowUpRight : skill.trend === "declining" ? ArrowDownRight : Minus;
   return (
-    <div className={`grid gap-3 rounded-[9px] px-3 py-3 sm:grid-cols-[minmax(140px,1fr)_1.2fr_88px_80px] sm:items-center ${targeted ? "bg-signal-soft" : "hover:bg-surface"}`}>
+    <div className={`grid gap-3 rounded-[9px] px-3 py-3 sm:grid-cols-[minmax(140px,1fr)_1.2fr_105px_80px] sm:items-center ${targeted ? "bg-signal-soft" : "hover:bg-surface"}`}>
       <div className="min-w-0"><p className="truncate text-xs font-semibold">{skill.label}</p><p className="mt-0.5 font-mono text-[9px] text-muted">{Math.round(skill.blueprint_weight * 100)}% blueprint</p></div>
       <div><div className="flex justify-between font-mono text-[9px] text-muted"><span>mastery</span><span>{skill.mastery === null ? "—" : `${Math.round(skill.mastery * 100)}%`}</span></div><div className="mt-1.5 h-1.5 rounded-full bg-line"><div className="h-full rounded-full bg-signal" style={{ width: `${(skill.mastery ?? 0) * 100}%` }} /></div></div>
-      <div><p className="font-mono text-xs font-semibold">{Math.round(skill.confidence * 100)}%</p><p className="text-[9px] text-muted">confidence</p></div>
+      <div><p className="font-mono text-xs font-semibold">{Math.round(skill.confidence * 100)}%</p><p className="text-[9px] text-muted">{skill.confidence_level.replaceAll("_", " ")}</p></div>
       <div className="flex items-center gap-1 text-[10px] text-muted"><TrendIcon size={13} className={skill.trend === "improving" ? "text-success" : skill.trend === "declining" ? "text-danger" : ""} /> {skill.trend.replaceAll("_", " ")}</div>
     </div>
   );

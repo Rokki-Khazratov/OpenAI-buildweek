@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BrainCircuit,
   CircleGauge,
   Clock3,
   FileSearch,
@@ -20,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Brand } from "@/components/layout/brand";
 import { Button } from "@/components/ui/button";
 import { generateMock, getAttempt, getAttemptResult, saveAttemptResponse, startAttempt, submitAttempt, type AttemptDto, type ResultDto } from "@/features/attempts/api";
+import { demoExamAnalytics } from "@/features/analytics/demo";
 import { useDemo } from "@/features/demo/demo-provider";
 import type { ExamAttempt } from "@/features/exams/types";
 
@@ -40,6 +42,33 @@ type Question = {
 };
 
 type DisplayResult = ExamAttempt & { evaluation?: ResultDto };
+
+type AdaptationSummary = {
+  reason: string;
+  targetSkills: string[];
+  confidence: string;
+  readinessBefore: number | null;
+};
+
+function adaptationFromAttempt(attempt: AttemptDto): AdaptationSummary | null {
+  const metadata = attempt.mock_exam.generation_metadata;
+  if (metadata.generation_mode !== "adaptive") return null;
+  const targetSkills = Array.isArray(metadata.target_skills)
+    ? metadata.target_skills.filter((item): item is string => typeof item === "string")
+    : [];
+  return {
+    reason: typeof metadata.adaptation_reason === "string"
+      ? metadata.adaptation_reason
+      : "This mock follows the current evidence-based target set.",
+    targetSkills,
+    confidence: typeof metadata.adaptation_confidence === "string"
+      ? metadata.adaptation_confidence
+      : "low_evidence",
+    readinessBefore: typeof metadata.readiness_before === "number"
+      ? metadata.readiness_before
+      : null,
+  };
+}
 
 export function ExamRun({
   examId,
@@ -70,6 +99,7 @@ export function ExamRun({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [submitting, setSubmitting] = useState(false);
+  const [adaptation, setAdaptation] = useState<AdaptationSummary | null>(null);
   const localQuestions = useMemo<Question[]>(
     () =>
       storedExam?.blueprint.flatMap((section, sectionIndex) =>
@@ -102,6 +132,7 @@ export function ExamRun({
 
   const hydrateAttempt = useCallback((attempt: AttemptDto) => {
     setAttemptId(attempt.id);
+    setAdaptation(adaptationFromAttempt(attempt));
     setRemoteQuestions(
       attempt.mock_exam.questions.map((question) => ({
         id: question.id,
@@ -229,6 +260,15 @@ export function ExamRun({
         setGenerating(false);
       }
       return;
+    }
+    if (generationMode === "adaptive") {
+      const profile = demoExamAnalytics(exam);
+      setAdaptation({
+        reason: profile.adaptive.reason,
+        targetSkills: profile.adaptive.target_skill_ids,
+        confidence: profile.adaptive.confidence_level,
+        readinessBefore: profile.readiness.index,
+      });
     }
     window.setTimeout(() => {
       setSecondsLeft(exam.rules.durationMinutes * 60);
@@ -391,6 +431,7 @@ export function ExamRun({
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-success">
               Attempt saved
             </p>
+            {adaptation && <AdaptationBanner summary={adaptation} className="mt-5" />}
             <div className="mt-4 flex flex-col gap-6 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h1 className="text-3xl font-semibold tracking-[-0.04em]">
@@ -571,6 +612,11 @@ export function ExamRun({
           <Wifi size={13} className="text-success" /> Online
         </span>
       </header>
+      {adaptation && (
+        <div className="border-b border-line bg-signal-soft px-4 py-3 sm:px-6">
+          <AdaptationBanner summary={adaptation} compact />
+        </div>
+      )}
       <div className="grid min-h-[calc(100dvh-64px)] lg:grid-cols-[240px_minmax(0,1fr)_260px]">
         <aside className="hidden border-r border-line bg-surface-raised p-4 lg:block">
           <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -755,6 +801,39 @@ export function ExamRun({
         </div>
       )}
     </div>
+  );
+}
+
+function AdaptationBanner({
+  summary,
+  compact = false,
+  className = "",
+}: {
+  summary: AdaptationSummary;
+  compact?: boolean;
+  className?: string;
+}) {
+  return (
+    <section className={`${className} ${compact ? "mx-auto flex max-w-[1280px] flex-wrap items-center gap-3" : "rounded-[12px] border border-signal/20 bg-signal-soft p-4"}`} aria-label="Saved adaptive context">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <BrainCircuit className="mt-0.5 shrink-0 text-signal" size={17} />
+        <div>
+          <p className="text-xs font-semibold">Evidence-based adaptive target</p>
+          <p className="mt-1 text-xs leading-5 text-muted">{summary.reason}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {summary.targetSkills.map((skill) => (
+          <span key={skill} className="rounded-full border border-signal/20 bg-white px-2.5 py-1 font-mono text-[10px] text-signal">
+            {skill.replaceAll("-", " ")}
+          </span>
+        ))}
+        <span className="font-mono text-[10px] text-muted">
+          {summary.confidence.replaceAll("_", " ")}
+          {summary.readinessBefore === null ? "" : ` · readiness before ${summary.readinessBefore}`}
+        </span>
+      </div>
+    </section>
   );
 }
 

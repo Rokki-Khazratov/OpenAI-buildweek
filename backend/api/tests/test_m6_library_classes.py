@@ -313,6 +313,8 @@ async def test_library_clone_membership_and_dashboard_are_safe(
         )
         session.add(question)
         await session.flush()
+        mock_id = mock.id
+        question_id = question.id
         for user_id, score in ((owner_id, 8), (learner_id, 4)):
             attempt = Attempt(
                 mock_exam_id=mock.id,
@@ -372,6 +374,13 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     assert profile["skills"][0]["mastery"] == 0.8
     assert profile["adaptive"]["eligible"] is True
     assert profile["adaptive"]["target_skill_ids"] == ["reasoning"]
+    for private_value in (
+        "private answer",
+        "private feedback",
+        "private coaching",
+        "private answer excerpt",
+    ):
+        assert private_value not in analytics.text.casefold()
 
     overview = await client.get("/api/v1/analytics/overview", headers=owner_headers)
     assert overview.status_code == 200, overview.text
@@ -389,3 +398,50 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     assert generated["generation_metadata"]["generation_mode"] == "adaptive"
     assert generated["generation_metadata"]["target_skills"] == ["reasoning"]
     assert generated["questions"][0]["skill_ids"] == ["reasoning"]
+
+    readiness_before = profile["readiness"]["index"]
+    async with database.session() as session, session.begin():
+        improved_attempt = Attempt(
+            mock_exam_id=mock_id,
+            exam_id=exam_id,
+            user_id=owner_id,
+            status=AttemptStatus.EVALUATED,
+            submitted_at=datetime.now(UTC),
+            duration_seconds=900,
+            score=10,
+            max_score=10,
+            result={"feedback": "new private feedback"},
+        )
+        session.add(improved_attempt)
+        await session.flush()
+        session.add(
+            QuestionEvaluation(
+                attempt_id=improved_attempt.id,
+                question_id=question_id,
+                strategy="deterministic",
+                awarded_points=10,
+                max_points=10,
+                dimension_scores=[],
+                answer_evidence=["new private answer excerpt"],
+                source_evidence=[],
+                feedback={"improvement": "new private coaching"},
+                confidence=1,
+                flags=[],
+                evaluator_metadata={},
+            )
+        )
+
+    updated_analytics = await client.get(
+        f"/api/v1/exams/{exam_id}/analytics", headers=owner_headers
+    )
+    assert updated_analytics.status_code == 200, updated_analytics.text
+    updated_profile = updated_analytics.json()
+    assert updated_profile["attempt_ids"] != profile["attempt_ids"]
+    assert len(updated_profile["attempt_ids"]) == 2
+    assert updated_profile["readiness"]["index"] > readiness_before
+    for private_value in (
+        "new private feedback",
+        "new private coaching",
+        "new private answer excerpt",
+    ):
+        assert private_value not in updated_analytics.text.casefold()

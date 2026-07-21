@@ -240,5 +240,5 @@ function HeaderFact({ label, value }: { label: string; value: string }) {
 }
 
 function OverviewSkeleton() {
-  return <main className="mx-auto max-w-[1240px] animate-pulse px-5 py-10"><div className="h-12 w-80 rounded bg-surface" /><div className="mt-8 h-72 rounded-[16px] bg-surface" /><div className="mt-6 h-56 rounded-[16px] bg-surface" /></main>;
+  return <main role="status" aria-label="Loading analytics" className="mx-auto max-w-[1240px] animate-pulse px-5 py-10"><div className="h-12 w-80 rounded bg-surface" /><div className="mt-8 h-72 rounded-[16px] bg-surface" /><div className="mt-6 h-56 rounded-[16px] bg-surface" /></main>;
 }

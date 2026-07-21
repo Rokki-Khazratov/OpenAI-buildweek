@@ -11,6 +11,38 @@ const DEMO_COMPUTED_AT = "2026-07-21T09:00:00.000Z";
 
 const MODEL_VERSION = "analytics.v1-demo";
 
+type DemoSkillFixture = {
+  skill_id: string;
+  label: string;
+  blueprint_weight: number;
+  scores: Array<number | null>;
+  evidence_per_attempt: number;
+};
+
+const DEMO_SKILL_FIXTURES: Record<string, DemoSkillFixture[]> = {
+  "algorithms-final": [
+    { skill_id: "dynamic-programming", label: "Dynamic programming", blueprint_weight: 0.3, scores: [0.35, 0.48, 0.58], evidence_per_attempt: 2 },
+    { skill_id: "graph-algorithms", label: "Graph algorithms", blueprint_weight: 0.3, scores: [0.75, 0.62, 0.5], evidence_per_attempt: 2 },
+    { skill_id: "complexity", label: "Complexity", blueprint_weight: 0.25, scores: [0.85, 0.88, 0.9], evidence_per_attempt: 2 },
+    { skill_id: "recursion", label: "Recursion", blueprint_weight: 0.15, scores: [null, null, 0.7], evidence_per_attempt: 1 },
+  ],
+};
+
+function demoObservedAt(examId: string, attemptIndex: number) {
+  const day = examId === "algorithms-final" ? 14 + attemptIndex * 3 : 13 + attemptIndex * 2;
+  return `2026-07-${String(day).padStart(2, "0")}T18:00:00.000Z`;
+}
+
+function fixtureTrend(scores: Array<number | null>): Pick<SkillAnalytics, "trend" | "trend_delta"> {
+  const values = scores.filter((score): score is number => score !== null);
+  if (values.length < 3) return { trend: "insufficient_data", trend_delta: null };
+  const delta = (values.at(-1)! + values.at(-2)!) / 2 - (values[0] + values[1]) / 2;
+  return {
+    trend: delta >= 0.08 ? "improving" : delta <= -0.08 ? "declining" : "stable",
+    trend_delta: Math.round(delta * 10000) / 10000,
+  };
+}
+
 function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
@@ -22,16 +54,17 @@ function level(confidence: number): ConfidenceLevel {
 }
 
 export function demoExamAnalytics(exam: Exam): ExamAnalytics {
-  const latest = exam.attempts.at(-1);
+  const latest = exam.attempts[0];
   const latestPercentage = latest
     ? Math.round((latest.score / Math.max(1, latest.maxScore)) * 100)
     : null;
-  const confidence = Math.min(0.86, exam.attempts.length * 0.18);
+  const defaultConfidence = Math.min(0.86, exam.attempts.length * 0.18);
+  const fixture = DEMO_SKILL_FIXTURES[exam.id];
   const blueprint = exam.blueprint?.length
     ? exam.blueprint
     : [{ id: "core", title: "Core knowledge", questionType: "Open response", questionCount: 1, durationMinutes: 1, points: exam.rules?.totalPoints ?? 100 }];
   const sectionWeightTotal = blueprint.reduce((sum, item) => sum + item.points, 0) || 1;
-  const skills: SkillAnalytics[] = blueprint.map((section, index) => {
+  const blueprintSkills: SkillAnalytics[] = blueprint.map((section, index) => {
     const offset = index === 1 ? -0.14 : index === 2 ? -0.05 : 0.07;
     const mastery = latestPercentage === null ? null : Math.max(0.18, Math.min(0.95, latestPercentage / 100 + offset));
     return {
@@ -39,8 +72,8 @@ export function demoExamAnalytics(exam: Exam): ExamAnalytics {
       label: section.title,
       blueprint_weight: section.points / sectionWeightTotal,
       mastery,
-      confidence,
-      confidence_level: level(confidence),
+      confidence: defaultConfidence,
+      confidence_level: level(defaultConfidence),
       evidence_count: exam.attempts.length * section.questionCount,
       effective_evidence: exam.attempts.length * section.questionCount * 0.82,
       attempt_count: exam.attempts.length,
@@ -49,18 +82,47 @@ export function demoExamAnalytics(exam: Exam): ExamAnalytics {
       latest_observed_at: latest ? DEMO_COMPUTED_AT : null,
     };
   });
+  const fixtureSkills: SkillAnalytics[] | null = fixture ? fixture.map((item) => {
+    const observed = item.scores
+      .map((score, index) => score === null ? null : { score, index })
+      .filter((value): value is { score: number; index: number } => value !== null);
+    const evidenceCount = observed.length * item.evidence_per_attempt;
+    const confidence = evidenceCount >= 6 ? 0.76 : evidenceCount >= 3 ? 0.56 : 0.24;
+    const mastery = observed.length
+      ? observed.reduce((sum, value) => sum + value.score, 0) / observed.length
+      : null;
+    return {
+      skill_id: item.skill_id,
+      label: item.label,
+      blueprint_weight: item.blueprint_weight,
+      mastery,
+      confidence,
+      confidence_level: level(confidence),
+      evidence_count: evidenceCount,
+      effective_evidence: Math.round(evidenceCount * 0.82 * 100) / 100,
+      attempt_count: observed.length,
+      ...fixtureTrend(item.scores),
+      latest_observed_at: observed.length ? demoObservedAt(exam.id, observed.at(-1)!.index) : null,
+    };
+  }) : null;
+  const skills = fixtureSkills ?? blueprintSkills;
+  const confidence = fixtureSkills
+    ? fixtureSkills.reduce((sum, skill) => sum + skill.confidence * skill.blueprint_weight, 0)
+    : defaultConfidence;
   const priority = [...skills].sort(
     (a, b) =>
       b.blueprint_weight * (1 - (b.mastery ?? 0.5)) -
       a.blueprint_weight * (1 - (a.mastery ?? 0.5)),
   )[0];
-  const readinessIndex =
-    latestPercentage === null
-      ? null
-      : Math.max(0, Math.round(latestPercentage - (1 - confidence) * 15));
+  const rawMastery = fixtureSkills
+    ? fixtureSkills.reduce((sum, skill) => sum + (skill.mastery ?? 0.5) * skill.blueprint_weight, 0)
+    : latestPercentage === null ? null : latestPercentage / 100;
+  const readinessIndex = rawMastery === null
+    ? null
+    : Math.max(0, Math.round(rawMastery * 100 - (1 - confidence) * 15));
   const readiness = {
     index: readinessIndex,
-    raw_mastery: latestPercentage === null ? null : latestPercentage / 100,
+    raw_mastery: rawMastery,
     confidence,
     coverage: latestPercentage === null ? 0 : 1,
     status: latestPercentage === null ? "no_data" as const : confidence < 0.35 ? "early_signal" as const : readinessIndex! < (exam.rules?.passPercentage ?? 50) ? "at_risk" as const : "on_track" as const,
@@ -82,13 +144,17 @@ export function demoExamAnalytics(exam: Exam): ExamAnalytics {
     },
     readiness,
     skills,
-    trajectory: exam.attempts.map((item) => ({
+    trajectory: [...exam.attempts].reverse().map((item, index) => {
+      const trajectoryConfidence = Math.min(0.86, (index + 1) * 0.24);
+      const scorePercentage = Math.round((item.score / Math.max(1, item.maxScore)) * 100);
+      return {
       attempt_id: item.id,
-      observed_at: DEMO_COMPUTED_AT,
-      score_percentage: Math.round((item.score / Math.max(1, item.maxScore)) * 100),
-      readiness_index: readinessIndex,
-      readiness_confidence: confidence,
-    })),
+      observed_at: demoObservedAt(exam.id, index),
+      score_percentage: scorePercentage,
+      readiness_index: Math.max(0, Math.round(scorePercentage - (1 - trajectoryConfidence) * 15)),
+      readiness_confidence: trajectoryConfidence,
+    };
+    }),
     recommendations: latestPercentage === null ? [{
       exam_id: exam.id,
       action: "run_full_mock",
@@ -141,11 +207,11 @@ export function demoAnalyticsOverview(exams: Exam[]): AnalyticsOverview {
       priority_skill: profiles[index].skills.find((item) => profiles[index].adaptive.target_skill_ids.includes(item.skill_id)) ?? null,
     })),
     next_action: recommendations.sort((a, b) => b.priority - a.priority)[0] ?? null,
-    recent_trajectory: exams.flatMap((exam) => exam.attempts.map((attempt) => ({
+    recent_trajectory: exams.flatMap((exam) => [...exam.attempts].reverse().map((attempt, index) => ({
       attempt_id: attempt.id,
       exam_id: exam.id,
       exam_title: exam.title,
-      observed_at: DEMO_COMPUTED_AT,
+      observed_at: demoObservedAt(exam.id, index),
       score_percentage: Math.round((attempt.score / Math.max(1, attempt.maxScore)) * 100),
     }))),
   };

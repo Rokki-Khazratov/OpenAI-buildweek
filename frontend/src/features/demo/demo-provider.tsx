@@ -130,7 +130,11 @@ const initialExams: Exam[] = [
     ],
     rules: { durationMinutes: 120, totalPoints: 100, passPercentage: 50, penalty: "Incorrect complexity claims may lose method points", allowedMaterials: "No materials", gradingNotes: "State assumptions and prove correctness for designed algorithms." },
     scenario: { mode: "adaptive", difficulty: "matched", instructions: "Prioritize dynamic programming and graph traversal while preserving the official section weights." },
-    attempts: [],
+    attempts: [
+      { id: "algorithms-attempt-3", examId: "algorithms-final", score: 70, maxScore: 100, durationMinutes: 111, completedAt: "20 July 2026, 19:10", feedback: "Complexity analysis is reliable. Keep strengthening dynamic programming and recover graph-algorithm accuracy.", answers: {} },
+      { id: "algorithms-attempt-2", examId: "algorithms-final", score: 61, maxScore: 100, durationMinutes: 118, completedAt: "17 July 2026, 17:35", feedback: "Dynamic programming improved, while graph-algorithm execution became less consistent.", answers: {} },
+      { id: "algorithms-attempt-1", examId: "algorithms-final", score: 52, maxScore: 100, durationMinutes: 120, completedAt: "14 July 2026, 16:20", feedback: "The diagnostic established a baseline: complexity is strongest and dynamic programming needs structured practice.", answers: {} },
+    ],
     updatedAt: "2 days ago",
   },
 ];
