@@ -9,7 +9,7 @@ import type {
 
 const DEMO_COMPUTED_AT = "2026-07-21T09:00:00.000Z";
 
-const MODEL_VERSION = "analytics.v1-demo";
+const MODEL_VERSION = "analytics.v2-demo";
 
 type DemoSkillFixture = {
   skill_id: string;
@@ -80,6 +80,7 @@ export function demoExamAnalytics(exam: Exam): ExamAnalytics {
       trend: exam.attempts.length < 3 ? "insufficient_data" : "stable",
       trend_delta: null,
       latest_observed_at: latest ? DEMO_COMPUTED_AT : null,
+      timing_signal: latest ? "typical" : "not_used",
     };
   });
   const fixtureSkills: SkillAnalytics[] | null = fixture ? fixture.map((item) => {
@@ -103,6 +104,7 @@ export function demoExamAnalytics(exam: Exam): ExamAnalytics {
       attempt_count: observed.length,
       ...fixtureTrend(item.scores),
       latest_observed_at: observed.length ? demoObservedAt(exam.id, observed.at(-1)!.index) : null,
+      timing_signal: observed.length ? "typical" : "not_used",
     };
   }) : null;
   const skills = fixtureSkills ?? blueprintSkills;
@@ -180,6 +182,9 @@ export function demoExamAnalytics(exam: Exam): ExamAnalytics {
         : "This mock targets the highest-impact skill limiting readiness.",
       confidence_level: level(confidence),
       recommended_difficulty: "matched",
+      policy_version: "adaptive.v2-demo",
+      target_reasons: latestPercentage === null ? {} : { [priority.skill_id]: confidence < 0.35 ? "collect_evidence" : "confirmed_gap" },
+      exploration_share: confidence < 0.35 ? 1 : 0,
     },
   };
 }

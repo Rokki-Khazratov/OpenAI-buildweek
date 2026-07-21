@@ -20,18 +20,20 @@ vi.mock("./api", () => ({
 const metrics: ClassDashboardDto = {
   class_id: "class-1",
   exam_id: null,
-  member_count: 2,
-  active_learners: 2,
-  total_attempts: 2,
-  average_percentage: 60,
-  readiness_percentage: 60,
+  model_version: "analytics.v2",
+  privacy_threshold: 3,
+  suppressed: false,
+  suppression_reason: null,
+  member_count: 3,
+  active_learners: 3,
+  eligible_learners: 3,
+  total_attempts: 3,
+  median_readiness_index: 60,
   readiness_coverage: 1,
-  pass_rate: 50,
-  weak_skills: [{ skill_id: "reasoning", percentage: 60, support: 2 }],
-  participants: [
-    { user_id: "owner", display_name: "Ada", role: "owner", attempts: 1, average_percentage: 80, readiness_percentage: 80, last_activity_at: "2026-07-20T10:00:00Z", weak_skill_ids: [] },
-    { user_id: "learner", display_name: "Lin", role: "member", attempts: 1, average_percentage: 40, readiness_percentage: 40, last_activity_at: "2026-07-20T09:00:00Z", weak_skill_ids: ["reasoning"] },
-  ],
+  readiness_confidence_distribution: { low_evidence: 2, developing: 1, established: 0 },
+  low_evidence_percentage: 66.7,
+  weak_skills: [{ skill_id: "reasoning", label: "Reasoning", mastery_percentage: 60, confidence: 0.4, support: 3, evidence_count: 6, signal: "confirmed_gap" }],
+  recommended_action: "Review Reasoning with the whole class.",
 };
 
 const studyClass = { id: "class-1", subjectId: "subject-1", name: "Cohort", description: "", examScope: "subject" as const, examIds: [], memberCount: 2, createdAt: "today", updatedAt: "today" };
@@ -50,10 +52,11 @@ afterEach(() => { delete process.env.NEXT_PUBLIC_DEMO_MODE; });
 describe("ClassDashboard", () => {
   it("renders reconciled aggregates without raw learner evidence", async () => {
     render(<ClassDashboard studyClass={studyClass} exams={[]} />);
-    expect(await screen.findByText("Participant readiness")).toBeInTheDocument();
+    expect(await screen.findByText("Evidence confidence")).toBeInTheDocument();
     expect(screen.getAllByText("60%")).not.toHaveLength(0);
-    expect(screen.getByText("50%")).toBeInTheDocument();
-    expect(screen.getAllByText("reasoning")).not.toHaveLength(0);
+    expect(screen.getByText("67%")).toBeInTheDocument();
+    expect(screen.getAllByText("Reasoning")).not.toHaveLength(0);
+    expect(document.body).not.toHaveTextContent("Participant readiness");
     expect(document.body).not.toHaveTextContent("answer evidence");
     expect(document.body).not.toHaveTextContent("private feedback");
   });
