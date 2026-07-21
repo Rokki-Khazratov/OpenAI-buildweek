@@ -38,8 +38,9 @@ async def create_exam(
     payload: ExamCreateRequest,
 ) -> Exam:
     await get_owned_workspace(session, owner_id, subject_id)
-    exam = Exam(workspace_id=subject_id, **payload.model_dump())
-    exam.status = ExamStatus.READY if payload.blueprint else ExamStatus.DRAFT
+    data = payload.model_dump(exclude={"status"})
+    exam = Exam(workspace_id=subject_id, **data)
+    exam.status = payload.status or (ExamStatus.READY if payload.blueprint else ExamStatus.DRAFT)
     session.add(exam)
     await session.flush()
     session.add(
@@ -107,6 +108,10 @@ async def update_exam(
     exam = await get_owned_exam(session, owner_id, exam_id)
     updates = payload.model_dump(exclude_unset=True)
     requested_version = updates.pop("configuration_version", None)
+    requested_status = updates.pop("status", None)
+    changed_fields = set(updates)
+    if requested_status is not None:
+        changed_fields.add("status")
     if requested_version is not None and requested_version != exam.configuration_version:
         raise ExamConfigurationConflictError
     for field, value in updates.items():
@@ -115,12 +120,14 @@ async def update_exam(
         exam.configuration_version += 1
         if exam.status != ExamStatus.ARCHIVED:
             exam.status = ExamStatus.READY if exam.blueprint else ExamStatus.DRAFT
+    if requested_status is not None:
+        exam.status = requested_status
     session.add(
         AuditEvent(
             actor_id=owner_id,
             workspace_id=exam.workspace_id,
             action="exam.updated",
-            details={"exam_id": str(exam.id), "fields": sorted(updates)},
+            details={"exam_id": str(exam.id), "fields": sorted(changed_fields)},
         )
     )
     await session.flush()

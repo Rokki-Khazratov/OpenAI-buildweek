@@ -442,7 +442,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         const exam: Exam = {
           id: createId(input.title, "exam"),
           ...input,
-          status: input.blueprint.length > 0 && input.sources.length > 0 ? "ready" : "draft",
+          status: input.status ?? (input.blueprint.length > 0 ? "ready" : "draft"),
           configurationVersion: 1,
           attempts: [],
           updatedAt: "Just now",
@@ -461,10 +461,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         replaceExams(exams.map((exam) => exam.id === id ? {
           ...exam,
           ...input,
-          status: input.blueprint.length > 0 && input.sources.length > 0 ? "ready" : "draft",
+          status: input.status ?? (input.blueprint.length > 0 ? "ready" : "draft"),
           updatedAt: "Just now",
         } : exam));
-        return { ...exams.find((exam) => exam.id === id)!, ...input, updatedAt: "Just now" };
+        return { ...exams.find((exam) => exam.id === id)!, ...input, status: input.status ?? (input.blueprint.length > 0 ? "ready" : "draft"), updatedAt: "Just now" };
       },
       async removeExam(id) {
         if (!demoMode) await deleteExam(id);

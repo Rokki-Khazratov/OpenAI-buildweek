@@ -74,6 +74,7 @@ export function LibraryWorkspace() {
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState("");
   const [examType, setExamType] = useState("");
+  const [order, setOrder] = useState<"newest" | "title" | "clones">("newest");
   const [loading, setLoading] = useState(!demoMode);
   const [cloning, setCloning] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -94,17 +95,21 @@ export function LibraryWorkspace() {
     return () => window.clearTimeout(timer);
   }, [demoMode, examType, language, query]);
 
-  const filteredDemo = useMemo(() => {
-    if (!demoMode) return items;
-    return items.filter((item) => {
+  const visibleItems = useMemo(() => {
+    const filtered = demoMode ? items.filter((item) => {
       const searchable = `${item.title} ${item.subject_title} ${item.university} ${item.course_code}`.toLowerCase();
       return (
         searchable.includes(query.toLowerCase()) &&
         (!language || item.language === language) &&
         (!examType || item.exam_type === examType)
       );
+    }) : items;
+    return [...filtered].sort((left, right) => {
+      if (order === "title") return left.title.localeCompare(right.title);
+      if (order === "clones") return right.clone_count - left.clone_count || left.title.localeCompare(right.title);
+      return new Date(right.published_at).getTime() - new Date(left.published_at).getTime();
     });
-  }, [demoMode, examType, items, language, query]);
+  }, [demoMode, examType, items, language, order, query]);
 
   async function clone(item: LibraryPublication) {
     if (demoMode) {
@@ -132,7 +137,7 @@ export function LibraryWorkspace() {
     >
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div>
-          <div className="grid gap-3 rounded-[14px] border border-line bg-surface-raised p-3 sm:grid-cols-[minmax(0,1fr)_150px_180px]">
+          <div className="grid gap-3 rounded-[14px] border border-line bg-surface-raised p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_140px_170px_160px]">
             <label className="flex min-h-11 items-center gap-2 rounded-[9px] border border-line bg-white px-3">
               <Search size={16} className="text-muted" />
               <input
@@ -156,15 +161,23 @@ export function LibraryWorkspace() {
               <span className="sr-only">Exam type</span>
               <input value={examType} onChange={(event) => setExamType(event.target.value)} placeholder="Exam type" className="min-h-11 w-full rounded-[9px] border border-line bg-white px-3 text-sm outline-hidden" />
             </label>
+            <label>
+              <span className="sr-only">Order Library results by</span>
+              <select aria-label="Order Library results by" value={order} onChange={(event) => setOrder(event.target.value as typeof order)} className="min-h-11 w-full rounded-[9px] border border-line bg-white px-3 text-sm">
+                <option value="newest">Newest first</option>
+                <option value="title">Title A–Z</option>
+                <option value="clones">Most cloned</option>
+              </select>
+            </label>
           </div>
 
           {error && <p role="alert" className="mt-4 rounded-[10px] border border-danger/30 bg-red-50 p-4 text-sm text-danger">{error}</p>}
           {notice && <p role="status" className="mt-4 rounded-[10px] border border-signal/20 bg-signal-soft p-4 text-sm text-signal">{notice}</p>}
           {loading ? (
             <div className="mt-5 rounded-[14px] border border-line p-8 text-sm text-muted">Loading verified exams…</div>
-          ) : filteredDemo.length ? (
+          ) : visibleItems.length ? (
             <div className="mt-5 grid gap-3">
-              {filteredDemo.map((item) => (
+              {visibleItems.map((item) => (
                 <button key={item.id} onClick={() => setSelected(item)} className={`group w-full rounded-[14px] border bg-white p-5 text-left transition hover:border-signal/40 ${selected?.id === item.id ? "border-signal shadow-[0_12px_32px_rgba(46,46,255,0.08)]" : "border-line"}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-center gap-3">

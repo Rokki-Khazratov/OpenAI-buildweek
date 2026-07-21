@@ -1,9 +1,9 @@
 "use client";
 
-import { Menu, Plus } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Brand } from "@/components/layout/brand";
 import { AccountMenu } from "@/components/layout/account-menu";
@@ -17,19 +17,55 @@ function isActive(pathname: string, href: string) {
 export function ProductShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        setSidebarOpen(window.localStorage.getItem("examtwin.sidebar.open") !== "false");
+      } catch {
+        // Keep the sidebar open when browser storage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function toggleSidebar() {
+    setSidebarOpen((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem("examtwin.sidebar.open", String(next));
+      } catch {
+        // The interaction still works for the current session.
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-dvh bg-canvas text-ink">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] border-r border-line bg-surface-raised px-3 py-4 lg:flex lg:flex-col">
-        <div className="px-2 pb-7 pt-0.5">
-          <Brand />
+      <aside className={`fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-surface-raised px-3 py-4 transition-[width] duration-300 ease-exam lg:flex lg:flex-col ${sidebarOpen ? "w-[232px]" : "w-[72px]"}`}>
+        <div className={`flex min-h-8 items-center pb-7 pt-0.5 ${sidebarOpen ? "justify-between px-2" : "justify-center"}`}>
+          {sidebarOpen && <Brand />}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="grid size-8 shrink-0 place-items-center rounded-[8px] text-muted transition hover:bg-surface hover:text-ink"
+            aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+            aria-expanded={sidebarOpen}
+            title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          >
+            {sidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
         </div>
 
         <Link
           href="/exams/new"
-          className="mb-5 flex min-h-10 items-center justify-between rounded-[9px] bg-contrast px-3.5 text-sm font-semibold text-contrast-ink transition hover:opacity-90"
+          className={`mb-5 flex min-h-10 items-center rounded-[9px] bg-contrast text-sm font-semibold text-contrast-ink transition hover:opacity-90 ${sidebarOpen ? "justify-between px-3.5" : "justify-center px-0"}`}
+          aria-label="New exam"
+          title={!sidebarOpen ? "New exam" : undefined}
         >
-          New exam
+          {sidebarOpen && <span>New exam</span>}
           <Plus size={17} strokeWidth={1.8} />
         </Link>
 
@@ -42,12 +78,13 @@ export function ProductShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`group flex min-h-10 items-center gap-3 rounded-[9px] px-3 text-sm transition ${
+                className={`group flex min-h-10 items-center rounded-[9px] text-sm transition ${sidebarOpen ? "gap-3 px-3" : "justify-center px-0"} ${
                   active ? "bg-signal-soft font-semibold text-signal" : "text-muted hover:bg-surface hover:text-ink"
                 }`}
+                title={!sidebarOpen ? item.label : undefined}
               >
                 <Icon size={18} strokeWidth={1.75} />
-                <span>{item.label}</span>
+                {sidebarOpen && <span>{item.label}</span>}
               </Link>
             );
           })}
@@ -55,7 +92,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
 
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center border-b border-line bg-canvas/92 px-4 backdrop-blur-xl lg:left-[232px] lg:px-7">
+      <header className={`fixed inset-x-0 top-0 z-20 flex h-16 items-center border-b border-line bg-canvas/92 px-4 backdrop-blur-xl transition-[left] duration-300 ease-exam lg:px-7 ${sidebarOpen ? "lg:left-[232px]" : "lg:left-[72px]"}`}>
         <div className="lg:hidden">
           <Brand />
         </div>
@@ -70,7 +107,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
         <div className="ml-auto"><AccountMenu /></div>
       </header>
 
-      <main className="min-h-dvh pb-24 pt-16 lg:ml-[232px] lg:pb-0">{children}</main>
+      <main className={`min-h-dvh pb-24 pt-16 transition-[margin] duration-300 ease-exam lg:pb-0 ${sidebarOpen ? "lg:ml-[232px]" : "lg:ml-[72px]"}`}>{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid h-[72px] grid-cols-4 border-t border-line bg-canvas/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
         {mobileNavigation.map((item) => {
