@@ -8,11 +8,11 @@ toolchain for this application.
 
 - Subjects are lightweight categories for organizing Exams and Classes.
 - Exams own their context data, blueprint, generation scenario, rules, attempt history, and statistics.
-- Exam CRUD, the five-step creation flow, focused mock simulation, local autosave, result archive,
-  and low-confidence statistics are implemented as a local-first visual prototype.
-- Subject, Exam, Class, and Attempt demo data persists in browser storage.
-- Real artifact processing, Vertex AI generation/evaluation, and analytics remain backend/worker
-  integrations; the UI does not claim those prototype results are production AI output.
+- Exam CRUD, the five-step creation flow, focused mock simulation, autosave, result archive,
+  Library, Classes, Statistics, and personal Analytics are implemented.
+- Demo mode persists Subject, Exam, Class, Attempt, and representative DS evidence in browser storage.
+- Normal mode uses the authenticated BFF, FastAPI, PostgreSQL, object storage, worker, and optional
+  Vertex generation/evaluation. The UI labels deterministic and Vertex-backed results explicitly.
 
 ## Structure
 

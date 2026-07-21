@@ -75,7 +75,14 @@ export type ResultDto = {
 
 export const getAttempt = (id: string) => apiFetch<AttemptDto>(`/attempts/${id}`);
 export const getAttemptResult = (id: string) => apiFetch<ResultDto>(`/attempts/${id}/result`);
-export const generateMock = (examId: string) => apiFetch<MockDto>(`/exams/${examId}/mocks`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } });
+export const generateMock = (
+  examId: string,
+  mode: "full_exam" | "adaptive" = "full_exam",
+) => apiFetch<MockDto>(`/exams/${examId}/mocks`, {
+  method: "POST",
+  headers: { "Idempotency-Key": crypto.randomUUID() },
+  body: JSON.stringify({ mode }),
+});
 export const startAttempt = (mockId: string) => apiFetch<AttemptDto>(`/mocks/${mockId}/attempts`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } });
 export const saveAttemptResponse = (attemptId: string, questionId: string, answer: string, flagged: boolean) => apiFetch(`/attempts/${attemptId}/responses/${questionId}`, { method: "PUT", body: JSON.stringify({ answer, flagged }) });
 export const submitAttempt = (attemptId: string) => apiFetch<ResultDto>(`/attempts/${attemptId}/submit`, { method: "POST", headers: { "Idempotency-Key": attemptId } });

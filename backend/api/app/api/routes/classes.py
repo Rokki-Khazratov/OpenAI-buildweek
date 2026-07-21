@@ -8,20 +8,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.classroom import (
     ClassCreateRequest,
+    ClassDashboardResponse,
     ClassListResponse,
+    ClassMemberAddRequest,
+    ClassMemberResponse,
     ClassResponse,
     ClassUpdateRequest,
 )
 from app.db.dependencies import get_session
 from app.modules.auth.dependencies import WorkspaceReadUser, WorkspaceWriteUser
 from app.modules.classes.service import (
+    ClassMemberConflictError,
+    ClassMemberNotFoundError,
     ClassNotFoundError,
     ClassRecord,
     InvalidClassScopeError,
+    add_class_member,
+    class_dashboard,
     create_class,
     delete_class,
     get_class,
+    list_class_members,
     list_classes,
+    remove_class_member,
     update_class,
 )
 from app.modules.workspaces.service import WorkspaceNotFoundError
@@ -40,6 +49,7 @@ def response_model(record: ClassRecord) -> ClassResponse:
         description=classroom.description,
         exam_scope=classroom.exam_scope,
         exam_ids=record.exam_ids,
+        member_count=record.member_count,
         created_at=classroom.created_at,
         updated_at=classroom.updated_at,
     )
@@ -131,3 +141,68 @@ async def delete(
     except ClassNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Class not found") from exc
     response.status_code = status.HTTP_204_NO_CONTENT
+
+
+@router.get("/classes/{class_id}/members")
+async def members(
+    class_id: UUID,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+) -> list[ClassMemberResponse]:
+    try:
+        return await list_class_members(session, current_user.id, class_id)
+    except ClassNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Class not found") from exc
+
+
+@router.post("/classes/{class_id}/members", status_code=status.HTTP_201_CREATED)
+async def add_member(
+    class_id: UUID,
+    payload: ClassMemberAddRequest,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+) -> ClassMemberResponse:
+    try:
+        async with session.begin():
+            return await add_class_member(session, current_user.id, class_id, str(payload.email))
+    except ClassNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Class not found") from exc
+    except ClassMemberNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="No active account uses that email") from exc
+    except ClassMemberConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/classes/{class_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member(
+    class_id: UUID,
+    user_id: UUID,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+    response: Response,
+) -> None:
+    try:
+        async with session.begin():
+            await remove_class_member(session, current_user.id, class_id, user_id)
+    except ClassNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Class not found") from exc
+    except ClassMemberNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Participant not found") from exc
+    except ClassMemberConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response.status_code = status.HTTP_204_NO_CONTENT
+
+
+@router.get("/classes/{class_id}/dashboard")
+async def dashboard(
+    class_id: UUID,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+    exam_id: UUID | None = None,
+) -> ClassDashboardResponse:
+    try:
+        return await class_dashboard(session, current_user.id, class_id, exam_id)
+    except ClassNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Class not found") from exc
+    except InvalidClassScopeError as exc:
+        raise invalid_scope(exc) from exc

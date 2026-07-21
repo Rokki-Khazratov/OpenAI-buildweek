@@ -10,8 +10,9 @@ uploads, durable background processing, and deterministic PDF/DOCX/TXT parsing a
 Embeddings, owned-exam vector retrieval, structured blueprint extraction, grounded mock generation,
 source citations, and rubric evaluation are implemented with Vertex AI and `gemini-3.5-flash`
 behind a provider-neutral AI interface. Authentication uses Google Application Default Credentials.
-Without Vertex configuration the deterministic fallback remains active. OCR, weak-topic adaptation,
-and advanced cohort analytics remain deferred.
+Without Vertex configuration the deterministic fallback remains active. Personal weak-skill
+adaptation is implemented through the versioned `analytics.v1` engine; OCR and advanced cohort
+analytics remain deferred.
 
 ## Implemented API
 
@@ -42,6 +43,15 @@ and advanced cohort analytics remain deferred.
 - `GET /api/v1/attempts/{attempt_id}/result`
 - `GET /api/v1/exams/{exam_id}/attempts`
 - `GET /api/v1/exams/{exam_id}/statistics`
+- `GET /api/v1/exams/{exam_id}/analytics`
+- `GET /api/v1/analytics/overview`
+- `PUT /api/v1/exams/{exam_id}/publication`
+- `DELETE /api/v1/exams/{exam_id}/publication`
+- `GET /api/v1/library/publications`
+- `GET /api/v1/library/publications/{publication_id}`
+- `POST /api/v1/library/publications/{publication_id}/clone`
+- `POST/GET /api/v1/classes/{class_id}/members`
+- `GET /api/v1/classes/{class_id}/dashboard`
 - `POST /api/v1/exams/{exam_id}/artifacts/uploads`
 - `POST /api/v1/artifacts/{artifact_id}/complete`
 - `GET /api/v1/exams/{exam_id}/artifacts`

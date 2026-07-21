@@ -79,7 +79,8 @@ async def artifact_harness() -> AsyncIterator[ArtifactHarness]:
         async with database.engine.begin() as connection:
             await connection.execute(
                 text(
-                    "TRUNCATE audit_events, artifact_chunks, artifact_pages, "
+                    "TRUNCATE audit_events, library_clones, library_publications, "
+                    "class_members, artifact_chunks, artifact_pages, "
                     "artifact_processing_jobs, artifacts, attempt_responses, attempts, "
                     "mock_questions, mock_exams, class_exams, classes, exams, "
                     "workspace_members, workspaces, refresh_tokens, users "

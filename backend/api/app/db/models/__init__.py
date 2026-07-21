@@ -11,8 +11,9 @@ from app.db.models.attempt import (
 from app.db.models.audit import AuditEvent
 from app.db.models.auth import RefreshToken
 from app.db.models.blueprint import ExamBlueprint
-from app.db.models.classroom import ClassExam, Classroom
+from app.db.models.classroom import ClassExam, ClassMember, Classroom
 from app.db.models.exam import Exam
+from app.db.models.library import LibraryClone, LibraryPublication
 from app.db.models.user import User
 from app.db.models.workspace import Workspace, WorkspaceMember
 
@@ -25,9 +26,12 @@ __all__ = [
     "AttemptResponse",
     "AuditEvent",
     "ClassExam",
+    "ClassMember",
     "Classroom",
     "Exam",
     "ExamBlueprint",
+    "LibraryClone",
+    "LibraryPublication",
     "MockExam",
     "MockQuestion",
     "QuestionEvaluation",

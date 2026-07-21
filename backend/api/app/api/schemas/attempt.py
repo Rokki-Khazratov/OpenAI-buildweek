@@ -1,11 +1,16 @@
 """P0 mock and attempt API schemas."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from app.db.models.attempt import AttemptStatus
+
+
+class MockGenerationRequest(BaseModel):
+    mode: Literal["full_exam", "adaptive"] = "full_exam"
 
 
 class MockQuestionResponse(BaseModel):

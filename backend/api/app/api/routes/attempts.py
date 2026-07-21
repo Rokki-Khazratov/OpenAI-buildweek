@@ -13,6 +13,7 @@ from app.api.schemas.attempt import (
     AttemptSummaryResponse,
     ExamStatisticsResponse,
     MockExamResponse,
+    MockGenerationRequest,
     MockQuestionResponse,
     QuestionResultResponse,
     ResponseSaveRequest,
@@ -97,11 +98,19 @@ def detail_response(
 
 @router.post("/exams/{exam_id}/mocks", status_code=status.HTTP_201_CREATED)
 async def create_mock(
-    exam_id: UUID, request: Request, current_user: WorkspaceWriteUser, session: SessionDependency
+    exam_id: UUID,
+    request: Request,
+    current_user: WorkspaceWriteUser,
+    session: SessionDependency,
+    payload: MockGenerationRequest | None = None,
 ) -> MockExamResponse:
     try:
         mock, questions = await generate_mock(
-            session, current_user.id, exam_id, request.app.state.settings
+            session,
+            current_user.id,
+            exam_id,
+            request.app.state.settings,
+            mode=payload.mode if payload else "full_exam",
         )
     except ExamNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Exam not found") from exc

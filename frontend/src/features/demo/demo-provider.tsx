@@ -130,7 +130,11 @@ const initialExams: Exam[] = [
     ],
     rules: { durationMinutes: 120, totalPoints: 100, passPercentage: 50, penalty: "Incorrect complexity claims may lose method points", allowedMaterials: "No materials", gradingNotes: "State assumptions and prove correctness for designed algorithms." },
     scenario: { mode: "adaptive", difficulty: "matched", instructions: "Prioritize dynamic programming and graph traversal while preserving the official section weights." },
-    attempts: [],
+    attempts: [
+      { id: "algorithms-attempt-3", examId: "algorithms-final", score: 70, maxScore: 100, durationMinutes: 111, completedAt: "20 July 2026, 19:10", feedback: "Complexity analysis is reliable. Keep strengthening dynamic programming and recover graph-algorithm accuracy.", answers: {} },
+      { id: "algorithms-attempt-2", examId: "algorithms-final", score: 61, maxScore: 100, durationMinutes: 118, completedAt: "17 July 2026, 17:35", feedback: "Dynamic programming improved, while graph-algorithm execution became less consistent.", answers: {} },
+      { id: "algorithms-attempt-1", examId: "algorithms-final", score: 52, maxScore: 100, durationMinutes: 120, completedAt: "14 July 2026, 16:20", feedback: "The diagnostic established a baseline: complexity is strongest and dynamic programming needs structured practice.", answers: {} },
+    ],
     updatedAt: "2 days ago",
   },
 ];
@@ -207,7 +211,7 @@ function mapExam(item: ExamDto, previous?: Exam, attemptItems: AttemptSummaryDto
 }
 
 function mapClass(item: ClassDto): StudyClass {
-  return { id: item.id, subjectId: item.subject_id, name: item.name, description: item.description ?? "", examScope: item.exam_scope === "selected_exams" ? "selected" : "subject", examIds: item.exam_ids, memberCount: 1, createdAt: new Date(item.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+  return { id: item.id, subjectId: item.subject_id, name: item.name, description: item.description ?? "", examScope: item.exam_scope === "selected_exams" ? "selected" : "subject", examIds: item.exam_ids, memberCount: item.member_count, createdAt: new Date(item.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
 }
 
 async function fetchRemoteProductData() {

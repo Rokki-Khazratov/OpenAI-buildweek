@@ -35,7 +35,8 @@ async def integration_client() -> AsyncIterator[AsyncClient]:
         async with database.engine.begin() as connection:
             await connection.execute(
                 text(
-                    "TRUNCATE audit_events, attempt_responses, attempts, "
+                    "TRUNCATE audit_events, library_clones, library_publications, "
+                    "class_members, attempt_responses, attempts, "
                     "mock_questions, mock_exams, class_exams, classes, exams, "
                     "workspace_members, workspaces, "
                     "refresh_tokens, users RESTART IDENTITY CASCADE"

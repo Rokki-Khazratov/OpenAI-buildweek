@@ -25,6 +25,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { ArtifactManager } from "@/features/artifacts/artifact-manager";
 import { BlueprintWorkspace } from "@/features/blueprints/blueprint-workspace";
 import { useDemo } from "@/features/demo/demo-provider";
+import { PublicationControl } from "@/features/library/publication-control";
 
 const tabs = ["Data", "Blueprint", "Scenario", "Rules", "History"] as const;
 type Tab = (typeof tabs)[number];
@@ -107,6 +108,7 @@ export function ExamDetail({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {exam.status === "ready" && <PublicationControl examId={exam.id} />}
           <Link
             href={`/exams/${exam.id}/edit`}
             className="inline-flex min-h-10 items-center gap-2 rounded-[9px] border border-line bg-white px-4 text-sm font-semibold hover:bg-surface"

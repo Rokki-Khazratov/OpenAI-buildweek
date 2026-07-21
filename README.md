@@ -22,8 +22,9 @@ The repository contains a working, API-backed P0 product, the complete P1 artifa
 | Nested Exam CRUD | Implemented |
 | Exam data, blueprint, scenario and rules editor | Persisted through the API with optimistic configuration versions |
 | Exam Run simulation | Backend-generated mock, durable attempt, autosave, reload/resume and immutable submit |
-| Exam statistics | Initial low-confidence overview implemented |
-| Class CRUD and exam scoping | Implemented |
+| Personal statistics and analytics | Evidence-based mastery, confidence, trends, readiness, recommendations and adaptive targets implemented |
+| Library publishing and cloning | Implemented with safe public snapshots and independent private clones |
+| Class CRUD, membership and progress | Implemented with exam scoping and privacy-safe cohort summaries |
 | PostgreSQL models and migrations | Implemented for the complete P0 domain, including mocks, questions, attempts and responses |
 | Artifact ingestion and retrieval | Implemented: private upload, parsing, chunking, embeddings and owned-exam vector retrieval |
 | Vertex AI generation and evaluation | Implemented with `gemini-3.5-flash` when `APP_VERTEX_PROJECT` is configured; deterministic fallback remains available |
@@ -321,16 +322,11 @@ PostgreSQL integration tests validate authentication, ownership isolation, CRUD,
 - **Rights-aware sharing:** users must have permission to publish third-party course materials.
 - **Clear prototype boundaries:** simulated or incomplete AI functionality is labelled honestly.
 
-## Roadmap
+## Remaining release work
 
-1. Add artifact metadata, presigned upload and object-storage contracts.
-2. Implement parsing, chunking, embeddings and retrieval jobs.
-3. Generate editable blueprints and scenarios with OpenAI.
-4. Produce grounded mocks constrained by reviewed source data and rules.
-5. Evaluate attempts with citations to rubrics and transparent uncertainty.
-6. Add mastery snapshots and adaptive next-mock generation.
-7. Complete library publishing/cloning and class-level progress.
-8. Add deployment and seeded judge access.
+1. Deploy the complete stack and document seeded judge access.
+2. Capture a successful live Vertex smoke result for the release environment.
+3. Add advanced cohort analytics after the personal adaptive loop is frozen.
 
 ## Further documentation
 
