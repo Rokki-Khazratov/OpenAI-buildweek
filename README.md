@@ -36,11 +36,19 @@ The UI distinguishes the deterministic fallback from Vertex AI generation. AI qu
 
 All product images below were captured from the running local application in the native browser at a laptop/desktop responsive breakpoint. Each screenshot includes the complete page width; no interface sections are cropped or reconstructed.
 
-### Dashboard
+### Dashboard (updated local capture)
 
-The home view keeps the next preparation action prominent and shows the student’s current exam context.
+The home view keeps the next preparation action prominent and shows the student’s current exam context. This screenshot was freshly captured from the local demo at a wide desktop viewport.
 
 ![ExamTwin dashboard](materials/01-dashboard.jpg)
+
+### Data-science analytics
+
+The analytics views separate readiness from evidence confidence and make score movement inspectable over time.
+
+![Exam statistics and readiness](materials/ds1.png)
+
+![Score trajectory and attempt history](materials/ds2.png)
 
 ### Subjects
 
@@ -89,6 +97,10 @@ Statistics are scoped to an Exam and clearly label the confidence of insights wh
 Classes can be scoped to a complete Subject or a selected group of Exams.
 
 ![Classes overview](materials/09-classes.jpg)
+
+## Demo video
+
+Watch the ExamTwin product walkthrough on YouTube: [ExamTwin — OpenAI Build Week](https://www.youtube.com/watch?v=dJqnmjUGrmU).
 
 ## Why ExamTwin
 
