@@ -34,7 +34,7 @@ export default function AboutPage() {
 
           <div className={styles.cards}>
             <article className={styles.card}>
-              <div className={styles.photo}>
+              <div className={`${styles.photo} ${styles.iliaPhoto}`}>
                 <Image src="/team/ilia-malkin.png" alt="Ilia Malkin" fill sizes="(max-width: 760px) 100vw, 50vw" priority className={`${styles.image} ${styles.iliaImage}`} />
               </div>
               <p className={styles.role}>Frontend, UI/UX & motion</p>

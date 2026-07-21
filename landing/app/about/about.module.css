@@ -20,6 +20,7 @@
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .card { background: #f8f7f0; border: 1px solid #d8d5c8; border-radius: 26px; padding: 18px; }
 .photo { position: relative; overflow: hidden; aspect-ratio: 1 / 1; border-radius: 17px; background: #20201a; }
+.iliaPhoto { background: #EAE8E9; }
 .image { object-fit: cover; object-position: 50% 33%; }
 .iliaImage { object-fit: contain; object-position: 50% 50%; transform: scale(.78); }
 .bekImage { object-position: 50% 75%; }
