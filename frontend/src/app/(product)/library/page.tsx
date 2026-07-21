@@ -1,3 +1,5 @@
-import { Library } from "lucide-react";
-import { FeaturePreview } from "@/components/feedback/feature-preview";
-export default function LibraryPage() { return <FeaturePreview eyebrow="Community" title="Library" description="Discover trusted exam spaces, inspect their blueprint and clone a private copy." icon={Library} items={[{ title: "Discover", text: "Filter by institution, subject, language, exam type and freshness." }, { title: "Inspect", text: "Preview blueprint, provenance, rights note and community trust signals." }, { title: "Clone", text: "Create a private copy while keeping its original provenance visible." }]} />; }
+import { LibraryWorkspace } from "@/features/library/library-workspace";
+
+export default function LibraryPage() {
+  return <LibraryWorkspace />;
+}

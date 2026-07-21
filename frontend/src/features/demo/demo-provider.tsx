@@ -207,7 +207,7 @@ function mapExam(item: ExamDto, previous?: Exam, attemptItems: AttemptSummaryDto
 }
 
 function mapClass(item: ClassDto): StudyClass {
-  return { id: item.id, subjectId: item.subject_id, name: item.name, description: item.description ?? "", examScope: item.exam_scope === "selected_exams" ? "selected" : "subject", examIds: item.exam_ids, memberCount: 1, createdAt: new Date(item.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+  return { id: item.id, subjectId: item.subject_id, name: item.name, description: item.description ?? "", examScope: item.exam_scope === "selected_exams" ? "selected" : "subject", examIds: item.exam_ids, memberCount: item.member_count, createdAt: new Date(item.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), updatedAt: new Date(item.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
 }
 
 async function fetchRemoteProductData() {

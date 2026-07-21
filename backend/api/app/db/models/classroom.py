@@ -3,7 +3,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -14,6 +14,11 @@ class ClassExamScope(StrEnum):
 
     SUBJECT = "subject"
     SELECTED_EXAMS = "selected_exams"
+
+
+class ClassMemberRole(StrEnum):
+    OWNER = "owner"
+    MEMBER = "member"
 
 
 class Classroom(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -57,4 +62,32 @@ class ClassExam(Base):
     exam_id: Mapped[UUID] = mapped_column(
         ForeignKey("exams.id", ondelete="CASCADE"),
         primary_key=True,
+    )
+
+
+class ClassMember(TimestampMixin, Base):
+    """An existing account participating in a class."""
+
+    __tablename__ = "class_members"
+
+    class_id: Mapped[UUID] = mapped_column(
+        ForeignKey("classes.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[ClassMemberRole] = mapped_column(
+        Enum(
+            ClassMemberRole,
+            name="class_member_role",
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+            values_callable=lambda members: [member.value for member in members],
+        ),
+        default=ClassMemberRole.MEMBER,
+        server_default=ClassMemberRole.MEMBER.value,
+    )
+    leaderboard_opt_in: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
     )
