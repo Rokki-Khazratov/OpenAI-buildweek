@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
+from statistics import median
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -11,11 +12,12 @@ from app.api.schemas.classroom import (
     ClassCreateRequest,
     ClassDashboardResponse,
     ClassMemberResponse,
-    ClassParticipantMetric,
     ClassSkillMetric,
     ClassUpdateRequest,
+    CohortExperimentSummaryResponse,
 )
-from app.db.models.attempt import Attempt, AttemptStatus, MockQuestion, QuestionEvaluation
+from app.db.models.analytics import CohortAnalyticsEvent
+from app.db.models.attempt import Attempt, AttemptStatus
 from app.db.models.audit import AuditEvent
 from app.db.models.classroom import (
     ClassExam,
@@ -27,11 +29,16 @@ from app.db.models.classroom import (
 from app.db.models.exam import Exam
 from app.db.models.user import User
 from app.db.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
+from app.modules.analytics.model import MODEL_VERSION
+from app.modules.analytics.service import exam_analytics
 from app.modules.workspaces.service import (
     accessible_workspace_filter,
     get_owned_workspace,
     get_workspace,
 )
+
+COHORT_PRIVACY_THRESHOLD = 3
+COHORT_SKILL_SUPPORT_THRESHOLD = 3
 
 
 class ClassNotFoundError(LookupError):
@@ -323,10 +330,6 @@ async def _scoped_exam_ids(session: AsyncSession, classroom: Classroom) -> list[
     )
 
 
-def _percentage(score: int | None, maximum: int) -> float:
-    return round(100 * (score or 0) / max(1, maximum), 1)
-
-
 async def class_dashboard(
     session: AsyncSession,
     owner_id: UUID,
@@ -340,15 +343,15 @@ async def class_dashboard(
             raise InvalidClassScopeError("The selected exam is outside this class scope")
         scoped_ids = [exam_id]
 
-    member_rows = (
-        await session.execute(
-            select(ClassMember, User.display_name)
-            .join(User, User.id == ClassMember.user_id)
-            .where(ClassMember.class_id == class_id)
-            .order_by(ClassMember.role, User.display_name)
-        )
-    ).all()
-    member_ids = [member.user_id for member, _ in member_rows]
+    member_ids = list(
+        (
+            await session.scalars(
+                select(ClassMember.user_id)
+                .where(ClassMember.class_id == class_id)
+                .order_by(ClassMember.user_id)
+            )
+        ).all()
+    )
     attempts: list[Attempt] = []
     if member_ids and scoped_ids:
         attempts = list(
@@ -365,97 +368,165 @@ async def class_dashboard(
             ).all()
         )
 
-    exams = (
-        list((await session.scalars(select(Exam).where(Exam.id.in_(scoped_ids)))).all())
-        if scoped_ids
-        else []
-    )
-    exam_rules = {item.id: item.rules for item in exams}
-    attempts_by_user: dict[UUID, list[Attempt]] = defaultdict(list)
-    for attempt in attempts:
-        attempts_by_user[attempt.user_id].append(attempt)
-
-    skill_points: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
-    user_skill_points: dict[UUID, dict[str, list[int]]] = defaultdict(
-        lambda: defaultdict(lambda: [0, 0, 0])
-    )
-    if attempts:
-        attempt_user = {item.id: item.user_id for item in attempts}
-        evaluation_rows = (
-            await session.execute(
-                select(QuestionEvaluation, MockQuestion.skill_ids)
-                .join(MockQuestion, MockQuestion.id == QuestionEvaluation.question_id)
-                .where(QuestionEvaluation.attempt_id.in_(list(attempt_user)))
-            )
-        ).all()
-        for evaluation, skill_ids in evaluation_rows:
-            for skill_id in set(skill_ids or []):
-                aggregate = skill_points[str(skill_id)]
-                aggregate[0] += evaluation.awarded_points
-                aggregate[1] += evaluation.max_points
-                aggregate[2] += 1
-                participant = user_skill_points[attempt_user[evaluation.attempt_id]][str(skill_id)]
-                participant[0] += evaluation.awarded_points
-                participant[1] += evaluation.max_points
-                participant[2] += 1
-
-    participants: list[ClassParticipantMetric] = []
-    latest_scores: list[float] = []
-    all_scores = [_percentage(item.score, item.max_score) for item in attempts]
-    for member, display_name in member_rows:
-        own_attempts = attempts_by_user.get(member.user_id, [])
-        own_scores = [_percentage(item.score, item.max_score) for item in own_attempts]
-        readiness = own_scores[0] if own_scores else None
-        if readiness is not None:
-            latest_scores.append(readiness)
-        weak = sorted(
-            (
-                (skill_id, 100 * values[0] / max(1, values[1]))
-                for skill_id, values in user_skill_points.get(member.user_id, {}).items()
-            ),
-            key=lambda item: (item[1], item[0]),
-        )
-        participants.append(
-            ClassParticipantMetric(
-                user_id=member.user_id,
-                display_name=display_name,
-                role=member.role,
-                attempts=len(own_attempts),
-                average_percentage=round(sum(own_scores) / len(own_scores), 1)
-                if own_scores
-                else None,
-                readiness_percentage=readiness,
-                last_activity_at=own_attempts[0].submitted_at if own_attempts else None,
-                weak_skill_ids=[skill_id for skill_id, score in weak if score < 70][:3],
-            )
+    active_ids = {item.user_id for item in attempts}
+    suppression_reason: str | None = None
+    if len(member_ids) < COHORT_PRIVACY_THRESHOLD:
+        suppression_reason = f"At least {COHORT_PRIVACY_THRESHOLD} class members are required."
+    elif len(scoped_ids) != 1:
+        suppression_reason = "Select one exam so blueprint and taxonomy versions remain comparable."
+    if suppression_reason:
+        return ClassDashboardResponse(
+            class_id=class_id,
+            exam_id=exam_id,
+            model_version=MODEL_VERSION,
+            privacy_threshold=COHORT_PRIVACY_THRESHOLD,
+            suppressed=True,
+            suppression_reason=suppression_reason,
+            member_count=len(member_ids),
+            active_learners=len(active_ids),
+            eligible_learners=0,
+            total_attempts=len(attempts),
+            median_readiness_index=None,
+            readiness_coverage=0,
+            readiness_confidence_distribution={
+                "low_evidence": 0,
+                "developing": 0,
+                "established": 0,
+            },
+            low_evidence_percentage=None,
+            weak_skills=[],
+            recommended_action=None,
         )
 
-    passed = 0
-    for attempt in attempts:
-        threshold = int(exam_rules.get(attempt.exam_id, {}).get("passPercentage", 50))
-        passed += _percentage(attempt.score, attempt.max_score) >= threshold
-    weak_skills = [
-        ClassSkillMetric(
-            skill_id=skill_id,
-            percentage=round(100 * values[0] / max(1, values[1]), 1),
-            support=values[2],
-        )
-        for skill_id, values in sorted(
-            skill_points.items(), key=lambda item: (item[1][0] / max(1, item[1][1]), item[0])
-        )
+    selected_exam_id = scoped_ids[0]
+    profiles = [
+        await exam_analytics(session, member_id, selected_exam_id)
+        for member_id in member_ids
+        if member_id in active_ids
     ]
+    eligible = [item for item in profiles if item.readiness.index is not None]
+    readiness_values = [
+        item.readiness.index for item in eligible if item.readiness.index is not None
+    ]
+    confidence_distribution = {"low_evidence": 0, "developing": 0, "established": 0}
+    skill_values: dict[str, list[tuple[float, float, int, str]]] = defaultdict(list)
+    for profile in eligible:
+        level = (
+            "low_evidence"
+            if profile.readiness.confidence < 0.35
+            else "developing"
+            if profile.readiness.confidence < 0.70
+            else "established"
+        )
+        confidence_distribution[level] += 1
+        for skill in profile.skills:
+            if skill.mastery is not None:
+                skill_values[skill.skill_id].append(
+                    (skill.mastery, skill.confidence, skill.evidence_count, skill.label)
+                )
+    weak_skills: list[ClassSkillMetric] = []
+    for skill_id, values in skill_values.items():
+        if len(values) < COHORT_SKILL_SUPPORT_THRESHOLD:
+            continue
+        mastery = sum(item[0] for item in values) / len(values)
+        confidence = sum(item[1] for item in values) / len(values)
+        weak_skills.append(
+            ClassSkillMetric(
+                skill_id=skill_id,
+                label=values[0][3],
+                mastery_percentage=round(mastery * 100, 1),
+                confidence=round(confidence, 4),
+                support=len(values),
+                evidence_count=sum(item[2] for item in values),
+                signal=(
+                    "low_evidence"
+                    if confidence < 0.35
+                    else "confirmed_gap"
+                    if mastery < 0.7
+                    else "healthy"
+                ),
+            )
+        )
+    weak_skills.sort(key=lambda item: (item.mastery_percentage, item.skill_id))
+    low_evidence = confidence_distribution["low_evidence"]
+    action = None
+    priority = next((item for item in weak_skills if item.signal == "confirmed_gap"), None)
+    if priority:
+        action = f"Review {priority.label} with the whole class."
+    elif low_evidence:
+        action = "Collect more comparable evidence before changing instruction."
     return ClassDashboardResponse(
         class_id=class_id,
         exam_id=exam_id,
-        member_count=len(member_rows),
-        active_learners=len(attempts_by_user),
+        model_version=MODEL_VERSION,
+        privacy_threshold=COHORT_PRIVACY_THRESHOLD,
+        suppressed=False,
+        suppression_reason=None,
+        member_count=len(member_ids),
+        active_learners=len(active_ids),
+        eligible_learners=len(eligible),
         total_attempts=len(attempts),
-        average_percentage=round(sum(all_scores) / len(all_scores), 1) if all_scores else None,
-        readiness_percentage=round(sum(latest_scores) / len(latest_scores), 1)
-        if latest_scores
+        median_readiness_index=round(float(median(readiness_values)), 1)
+        if readiness_values
         else None,
-        readiness_coverage=round(len(latest_scores) / max(1, len(member_rows)), 2),
-        pass_rate=round(100 * passed / len(attempts), 1) if attempts else None,
+        readiness_coverage=round(len(eligible) / max(1, len(member_ids)), 2),
+        readiness_confidence_distribution=confidence_distribution,
+        low_evidence_percentage=round(100 * low_evidence / len(eligible), 1) if eligible else None,
         weak_skills=weak_skills,
-        participants=participants,
+        recommended_action=action,
+    )
+
+
+async def record_cohort_event(
+    session: AsyncSession,
+    owner_id: UUID,
+    class_id: UUID,
+    event_name: str,
+    properties: dict[str, str | int | float | bool],
+) -> None:
+    classroom = await get_owned_class(session, owner_id, class_id)
+    session.add(
+        CohortAnalyticsEvent(
+            class_id=classroom.id,
+            actor_id=owner_id,
+            event_name=event_name,
+            model_version=MODEL_VERSION,
+            properties=properties,
+        )
+    )
+    session.add(
+        AuditEvent(
+            actor_id=owner_id,
+            workspace_id=classroom.workspace_id,
+            action=f"cohort_analytics.{event_name}",
+            details={"class_id": str(class_id)},
+        )
+    )
+    await session.flush()
+
+
+async def cohort_experiment_summary(
+    session: AsyncSession, owner_id: UUID, class_id: UUID
+) -> CohortExperimentSummaryResponse:
+    await get_owned_class(session, owner_id, class_id)
+    rows = (
+        await session.execute(
+            select(CohortAnalyticsEvent.event_name, func.count(CohortAnalyticsEvent.id))
+            .where(CohortAnalyticsEvent.class_id == class_id)
+            .group_by(CohortAnalyticsEvent.event_name)
+        )
+    ).all()
+    counts = {name: int(count) for name, count in rows}
+    viewed = counts.get("dashboard_viewed", 0)
+    started = counts.get("adaptive_mock_started", 0)
+    return CohortExperimentSummaryResponse(
+        class_id=class_id,
+        model_version=MODEL_VERSION,
+        event_counts=counts,
+        recommendation_acceptance_rate=round(counts.get("recommendation_accepted", 0) / viewed, 4)
+        if viewed
+        else None,
+        adaptive_completion_rate=round(counts.get("adaptive_mock_completed", 0) / started, 4)
+        if started
+        else None,
     )
