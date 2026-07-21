@@ -1,6 +1,7 @@
 """Exam CRUD schemas."""
 
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -46,6 +47,7 @@ class ExamCreateRequest(BaseModel):
     exam_type: str | None = Field(default=None, max_length=120)
     language: str = Field(default="en", min_length=2, max_length=32)
     target_date: date | None = None
+    status: Literal[ExamStatus.DRAFT] | None = None
     pasted_context: str = Field(default="", max_length=20000)
     sources: list[ExamSourcePayload] = Field(default_factory=list, max_length=100)
     blueprint: list[BlueprintSectionPayload] = Field(default_factory=list, max_length=50)

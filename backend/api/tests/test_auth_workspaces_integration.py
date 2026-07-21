@@ -255,6 +255,55 @@ async def test_subject_exam_and_class_scope(integration_client: AsyncClient) -> 
     assert classes.json()["total"] == 2
 
 
+async def test_exam_can_remain_an_explicit_draft_with_a_blueprint(
+    integration_client: AsyncClient,
+) -> None:
+    await register(integration_client, "draft-owner@example.com")
+    headers = bearer(await login(integration_client, "draft-owner@example.com"))
+    subject = await integration_client.post(
+        "/api/v1/subjects", headers=headers, json={"title": "Draft subject"}
+    )
+    subject_id = subject.json()["id"]
+    blueprint = [
+        {
+            "id": "part-a",
+            "title": "Part A",
+            "questionType": "Open response",
+            "questionCount": 1,
+            "durationMinutes": 30,
+            "points": 20,
+        }
+    ]
+
+    created = await integration_client.post(
+        f"/api/v1/subjects/{subject_id}/exams",
+        headers=headers,
+        json={"title": "Work in progress", "blueprint": blueprint, "status": "draft"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["status"] == "draft"
+
+    invalid_ready = await integration_client.post(
+        f"/api/v1/subjects/{subject_id}/exams",
+        headers=headers,
+        json={"title": "Invalid ready exam", "status": "ready"},
+    )
+    assert invalid_ready.status_code == 422, invalid_ready.text
+
+    updated = await integration_client.patch(
+        f"/api/v1/exams/{created.json()['id']}",
+        headers=headers,
+        json={
+            "description": "Still not finished",
+            "blueprint": blueprint,
+            "status": "draft",
+            "configuration_version": created.json()["configuration_version"],
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["status"] == "draft"
+
+
 async def test_durable_exam_mock_and_attempt_flow(integration_client: AsyncClient) -> None:
     await register(integration_client, "attempt-owner@example.com")
     tokens = await login(integration_client, "attempt-owner@example.com")
