@@ -22,8 +22,7 @@ export default function AboutPage() {
           <p className={styles.kicker}><span /> About us</p>
           <h1>By students,<br />for students.</h1>
           <div className={styles.copy}>
-            <p>We&apos;re Bek and Ilya — two students building ExamTwin from Vienna. We know the feeling of collecting notes, slides and past papers, then still wondering what to practise next.</p>
-            <p>So we&apos;re making the preparation partner we wished we had: one that understands the materials behind your real exam and helps you turn study time into evidence that you&apos;re ready.</p>
+            <p>Hi, we&apos;re two students in Vienna. While preparing for exams, we kept using ChatGPT, Claude, and Gemini, but every time we had to explain the context again and manually figure out where we were making mistakes. So we built ExamTwin: an AI-powered platform that turns your own study materials into realistic mock exams and uses data-driven analytics to identify weak areas and help you improve.</p>
           </div>
         </section>
 
@@ -35,31 +34,35 @@ export default function AboutPage() {
 
           <div className={styles.cards}>
             <article className={styles.card}>
-              <div className={`${styles.photo} ${styles.placeholder}`} aria-label="Ilya photo placeholder">
-                <span>Photo<br />coming soon</span>
+              <div className={styles.photo}>
+                <Image src="/team/ilia-malkin.png" alt="Ilia Malkin" fill sizes="(max-width: 760px) 100vw, 50vw" priority className={`${styles.image} ${styles.iliaImage}`} />
               </div>
-              <p className={styles.role}>Product & learning</p>
-              <h3>Ilya</h3>
-              <p className={styles.bio}>Ilya shapes the learning experience — translating the reality of student life into focused practice that feels clear, calm and useful.</p>
+              <p className={styles.role}>Frontend, UI/UX & motion</p>
+              <h3>Ilia Malkin</h3>
+              <p className={styles.bio}>Ilia is a coder and visual builder behind the frontend, UI/UX and video motion — making ExamTwin feel as clear and polished as it is useful.</p>
               <div className={styles.tags}>
-                <span>Student perspective</span>
-                <span>Product</span>
-                <span>Learning design</span>
+                <span>WU Vienna</span>
+                <span>Frontend</span>
+                <span>UI/UX</span>
+                <span>Video motion</span>
               </div>
-              <p className={styles.pending}>LinkedIn & GitHub coming soon</p>
+              <div className={styles.links}>
+                <a href="https://github.com/IliaMalkin/" target="_blank" rel="noreferrer">GitHub <Arrow /></a>
+              </div>
             </article>
 
             <article className={styles.card}>
               <div className={styles.photo}>
-                <Image src="/team/bek-khazratov.jpg" alt="Bek Khazratov" fill sizes="(max-width: 760px) 100vw, 50vw" priority className={styles.image} />
+                <Image src="/team/bek-khazratov.jpg" alt="Bek Khazratov" fill sizes="(max-width: 760px) 100vw, 50vw" priority className={`${styles.image} ${styles.bekImage}`} />
               </div>
-              <p className={styles.role}>Engineering</p>
+              <p className={styles.role}>Backend & data science</p>
               <h3>Bek Khazratov</h3>
-              <p className={styles.bio}>Bek builds the technical foundation: the AI flows, product architecture and systems that turn course material into a genuinely adaptive exam rehearsal.</p>
+              <p className={styles.bio}>Bek builds the backend, AI workflows and data-driven analytics that turn course material into realistic mock exams and useful signals for what to practise next.</p>
               <div className={styles.tags}>
-                <span>Full-stack engineering</span>
+                <span>TU Wien · Data Analytics</span>
+                <span>Backend engineering</span>
                 <span>AI workflows</span>
-                <span>Vienna</span>
+                <span>Data science</span>
               </div>
               <div className={styles.links}>
                 <a href="https://www.linkedin.com/in/bek-khazratov-751954225/" target="_blank" rel="noreferrer">LinkedIn <Arrow /></a>
