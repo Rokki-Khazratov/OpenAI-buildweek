@@ -2,7 +2,9 @@
 
 > Build a faithful digital twin of a real exam, practise it under realistic conditions, and turn every attempt into a better next mock.
 
-ExamTwin is an adaptive exam-preparation platform created for OpenAI Build Week. It helps students organise university exams, attach the material that defines each exam, describe its structure and rules, run a focused mock session, and retain results for future feedback and adaptation.
+ExamTwin is an adaptive exam-preparation platform created for OpenAI Build Week. It turns the material that actually defines a university exam—past papers, rubrics, notes, timing and scoring rules—into a private, evidence-aware practice loop.
+
+Instead of producing generic questions for a topic, ExamTwin reconstructs the exam contract, generates a realistic mock, preserves what happened in each attempt, and uses the resulting evidence to choose the next high-impact practice target.
 
 The product is deliberately exam-centred:
 
@@ -34,7 +36,7 @@ The UI distinguishes the deterministic fallback from Vertex AI generation. AI qu
 
 ## Product preview
 
-All product images below were captured from the running local application in the native browser at a laptop/desktop responsive breakpoint. Each screenshot includes the complete page width; no interface sections are cropped or reconstructed.
+The screenshots below show the running product at a desktop breakpoint. They follow the learner journey from setup to evidence-backed adaptation.
 
 ### Dashboard
 
@@ -84,6 +86,18 @@ Statistics are scoped to an Exam and clearly label the confidence of insights wh
 
 ![Exam statistics](materials/08-exam-statistics.jpg)
 
+### Readiness and adaptive next step
+
+The analytics layer separates mastery from evidence confidence. It identifies the skill currently limiting readiness, keeps uncertainty visible, and recommends an adaptive mock only when the underlying evidence supports it.
+
+![Readiness, skill evidence and adaptive recommendation](materials/10-readiness-adaptive-analytics.png)
+
+### Score trajectory
+
+Attempt history makes progress inspectable rather than anecdotal: learners can see score movement, durations, confidence caveats and the records behind the trend.
+
+![Score trajectory and attempt history](materials/11-score-trajectory.png)
+
 ### Classes
 
 Classes can be scoped to a complete Subject or a selected group of Exams.
@@ -125,6 +139,18 @@ User
 ```
 
 This boundary prevents Subject pages from accumulating exam-only responsibilities and allows multiple finals, midterms, oral exams or certification attempts to coexist under one course category.
+
+## How we used Codex
+
+Codex was used as an engineering collaborator throughout the build, not as a source of student-facing answers or hidden product logic.
+
+- **System delivery:** implemented and reviewed frontend, FastAPI, background-worker, Docker and CI/CD changes across the product milestones.
+- **Quality gates:** ran static checks, PostgreSQL integration tests, frontend tests, normal-mode E2E smoke tests and production readiness audits.
+- **Privacy hardening:** helped identify and fix class-derived over-broad access, cohort-threshold leakage risk and unsafe suppressed-state UI exposure.
+- **Data-science integration:** converted the analytics requirements into versioned observations, snapshots, confidence-aware readiness, adaptive targeting and privacy-safe cohort aggregates.
+- **Release operations:** prepared the production Compose stack, deployment guide, environment templates, GitHub PRs and the subsequent production registration hotfix.
+
+All user-facing AI functionality is implemented in the product runtime through the configured Vertex AI / Gemini path with deterministic fallback for reproducible local and CI operation. Codex was used to accelerate implementation, testing and release engineering.
 
 ## Architecture
 
