@@ -20,12 +20,16 @@ depends_on: str | Sequence[str] | None = None
 def timestamps() -> list[sa.Column]:
     return [
         sa.Column(
-            "created_at", sa.DateTime(timezone=True),
-            server_default=sa.text("now()"), nullable=False,
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True),
-            server_default=sa.text("now()"), nullable=False,
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     ]
 
@@ -60,11 +64,13 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_library_publications_publisher_id"),
-        "library_publications", ["publisher_id"],
+        "library_publications",
+        ["publisher_id"],
     )
     op.create_index(
         op.f("ix_library_publications_source_exam_id"),
-        "library_publications", ["source_exam_id"],
+        "library_publications",
+        ["source_exam_id"],
     )
 
     op.create_table(
@@ -94,15 +100,20 @@ def upgrade() -> None:
         sa.Column(
             "role",
             sa.Enum(
-                "owner", "member", name="class_member_role",
-                native_enum=False, create_constraint=True,
+                "owner",
+                "member",
+                name="class_member_role",
+                native_enum=False,
+                create_constraint=True,
             ),
             server_default="member",
             nullable=False,
         ),
         sa.Column(
-            "leaderboard_opt_in", sa.Boolean(),
-            server_default=sa.text("false"), nullable=False,
+            "leaderboard_opt_in",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
         ),
         *timestamps(),
         sa.ForeignKeyConstraint(["class_id"], ["classes.id"], ondelete="CASCADE"),

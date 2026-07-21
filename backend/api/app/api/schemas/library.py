@@ -44,4 +44,3 @@ class LibraryCloneResponse(BaseModel):
     subject_id: UUID
     exam_id: UUID
     already_cloned: bool
-

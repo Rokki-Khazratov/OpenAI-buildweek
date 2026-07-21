@@ -88,6 +88,4 @@ class ClassMember(TimestampMixin, Base):
         default=ClassMemberRole.MEMBER,
         server_default=ClassMemberRole.MEMBER.value,
     )
-    leaderboard_opt_in: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false"
-    )
+    leaderboard_opt_in: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

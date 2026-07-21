@@ -118,9 +118,7 @@ async def create_class(
     session.add(classroom)
     await session.flush()
     session.add_all(ClassExam(class_id=classroom.id, exam_id=item) for item in exam_ids)
-    session.add(
-        ClassMember(class_id=classroom.id, user_id=owner_id, role=ClassMemberRole.OWNER)
-    )
+    session.add(ClassMember(class_id=classroom.id, user_id=owner_id, role=ClassMemberRole.OWNER))
     session.add(
         AuditEvent(
             actor_id=owner_id,
