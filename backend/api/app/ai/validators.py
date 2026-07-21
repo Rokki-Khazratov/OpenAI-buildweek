@@ -64,6 +64,8 @@ def validate_mock(
     *,
     blueprint_sections: list[dict[str, object]],
     allowed_chunk_ids: set[str],
+    allowed_skill_ids: set[str] | None = None,
+    target_skill_ids: set[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     expected = {str(item["id"]): item for item in blueprint_sections}
@@ -92,6 +94,10 @@ def validate_mock(
     for index, item in enumerate(generated.questions):
         if item.section_id not in expected:
             errors.append(f"Question {index + 1} uses unknown section {item.section_id}")
+        if allowed_skill_ids is not None:
+            invalid_skills = sorted(set(item.skill_ids) - allowed_skill_ids)
+            if invalid_skills:
+                errors.append(f"Question {index + 1} has unknown skills {invalid_skills}")
         invalid_refs = sorted(set(item.citation_chunk_ids) - allowed_chunk_ids)
         if invalid_refs:
             errors.append(f"Question {index + 1} has invalid citations {invalid_refs}")
@@ -106,4 +112,11 @@ def validate_mock(
                 errors.append(f"Question {index + 1} rubric points do not match question points")
         if item.grading_mode == "objective" and not item.answer_key.strip():
             errors.append(f"Question {index + 1} is missing an answer key")
+    if target_skill_ids:
+        generated_skills = {
+            skill_id for question in generated.questions for skill_id in question.skill_ids
+        }
+        missing_targets = sorted(target_skill_ids - generated_skills)
+        if missing_targets:
+            errors.append(f"Adaptive mock does not cover target skills {missing_targets}")
     return errors

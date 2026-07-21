@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from app.api.routes.analytics import router as analytics_router
 from app.api.routes.artifacts import router as artifacts_router
 from app.api.routes.attempts import router as attempts_router
 from app.api.routes.auth import router as auth_router
@@ -15,6 +16,7 @@ from app.api.routes.users import router as users_router
 from app.api.routes.workspaces import router as workspaces_router
 
 api_router = APIRouter()
+api_router.include_router(analytics_router, tags=["analytics"])
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(auth_router, tags=["auth"])
 api_router.include_router(blueprints_router, tags=["blueprints"])

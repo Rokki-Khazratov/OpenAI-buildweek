@@ -45,7 +45,7 @@ export function GlobalSearch() {
     const routeResults = navigation.map((item) => ({
       id: `route-${item.href}`,
       label: item.label,
-      meta: item.soon ? "Coming soon" : "Page",
+      meta: "Page",
       href: item.href,
       icon: item.label === "Classes" ? UsersRound : FileText,
     }));

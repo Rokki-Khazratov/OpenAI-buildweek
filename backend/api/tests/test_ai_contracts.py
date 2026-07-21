@@ -99,6 +99,54 @@ def test_mock_validator_enforces_blueprint_and_rubric_arithmetic() -> None:
     assert any("rubric points" in item for item in errors)
 
 
+def test_mock_validator_enforces_adaptive_skill_contract() -> None:
+    rubric = QuestionRubric(
+        dimensions=[
+            RubricDimension(
+                id="accuracy",
+                label="Accuracy",
+                max_points=10,
+                criteria=[
+                    RubricLevel(label="full", points=10, description="Correct"),
+                    RubricLevel(label="none", points=0, description="Incorrect"),
+                ],
+            )
+        ]
+    )
+    generated = GeneratedMock(
+        title="Adaptive mock",
+        questions=[
+            GeneratedQuestion(
+                section_id="theory",
+                question_type="Open response",
+                prompt="Explain the central theory using the supplied source.",
+                points=10,
+                answer_key="Supported explanation",
+                skill_ids=["foreign-skill"],
+                rubric=rubric,
+                citation_chunk_ids=["chunk-1"],
+            )
+        ],
+    )
+    errors = validate_mock(
+        generated,
+        blueprint_sections=[
+            {
+                "id": "theory",
+                "questionType": "Open response",
+                "questionCount": 1,
+                "points": 10,
+            }
+        ],
+        allowed_chunk_ids={"chunk-1"},
+        allowed_skill_ids={"core-theory"},
+        target_skill_ids={"core-theory"},
+    )
+
+    assert any("unknown skills" in item for item in errors)
+    assert any("does not cover target skills" in item for item in errors)
+
+
 def test_deterministic_score_and_point_distribution_are_exact() -> None:
     assert distribute_points(10, 3) == [4, 3, 3]
     assert deterministic_objective_score("  Vienna ", "vienna", 5) == 5

@@ -15,7 +15,7 @@ export const navigation = [
   { label: "Statistics", href: "/statistics", icon: BarChart3 },
   { label: "Library", href: "/library", icon: Library },
   { label: "Classes", href: "/classes", icon: UsersRound },
-  { label: "Analytics", href: "/analytics", icon: ChartNoAxesCombined, soon: true },
+  { label: "Analytics", href: "/analytics", icon: ChartNoAxesCombined },
 ];
 
 export const mobileNavigation = [

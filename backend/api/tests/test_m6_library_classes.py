@@ -119,9 +119,7 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     m6_harness: tuple[AsyncClient, Database],
 ) -> None:
     client, database = m6_harness
-    owner_headers, owner_id = await register_and_login(
-        client, "owner@example.com", "Professor Ada"
-    )
+    owner_headers, owner_id = await register_and_login(client, "owner@example.com", "Professor Ada")
     learner_headers, learner_id = await register_and_login(
         client, "learner@example.com", "Student Lin"
     )
@@ -240,9 +238,7 @@ async def test_library_clone_membership_and_dashboard_are_safe(
         headers=learner_headers,
     )
     assert repeated.json() == {**clone, "already_cloned": True}
-    clone_exam = await client.get(
-        f"/api/v1/exams/{clone['exam_id']}", headers=learner_headers
-    )
+    clone_exam = await client.get(f"/api/v1/exams/{clone['exam_id']}", headers=learner_headers)
     assert clone_exam.json()["pasted_context"] == ""
     assert clone_exam.json()["sources"] == []
     changed = await client.patch(
@@ -361,9 +357,35 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     assert metrics["readiness_percentage"] == 60
     assert metrics["readiness_coverage"] == 1
     assert metrics["pass_rate"] == 50
-    assert metrics["weak_skills"] == [
-        {"skill_id": "reasoning", "percentage": 60, "support": 2}
-    ]
+    assert metrics["weak_skills"] == [{"skill_id": "reasoning", "percentage": 60, "support": 2}]
     dashboard_text = dashboard.text.casefold()
     for private_value in ("answer", "feedback", "coaching", "excerpt", "email"):
         assert private_value not in dashboard_text
+
+    analytics = await client.get(f"/api/v1/exams/{exam_id}/analytics", headers=owner_headers)
+    assert analytics.status_code == 200, analytics.text
+    profile = analytics.json()
+    assert profile["model_version"] == "analytics.v1"
+    assert profile["readiness"]["status"] == "early_signal"
+    assert profile["readiness"]["index"] is not None
+    assert profile["skills"][0]["skill_id"] == "reasoning"
+    assert profile["skills"][0]["mastery"] == 0.8
+    assert profile["adaptive"]["eligible"] is True
+    assert profile["adaptive"]["target_skill_ids"] == ["reasoning"]
+
+    overview = await client.get("/api/v1/analytics/overview", headers=owner_headers)
+    assert overview.status_code == 200, overview.text
+    assert overview.json()["total_attempts"] == 1
+    assert overview.json()["total_evaluated_questions"] == 1
+    assert overview.json()["next_action"]["exam_id"] == exam_id
+
+    adaptive = await client.post(
+        f"/api/v1/exams/{exam_id}/mocks",
+        headers=owner_headers,
+        json={"mode": "adaptive"},
+    )
+    assert adaptive.status_code == 201, adaptive.text
+    generated = adaptive.json()
+    assert generated["generation_metadata"]["generation_mode"] == "adaptive"
+    assert generated["generation_metadata"]["target_skills"] == ["reasoning"]
+    assert generated["questions"][0]["skill_ids"] == ["reasoning"]

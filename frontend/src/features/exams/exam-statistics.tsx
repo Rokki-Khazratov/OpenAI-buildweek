@@ -17,6 +17,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
+import { getExamAnalytics } from "@/features/analytics/api";
+import { demoExamAnalytics } from "@/features/analytics/demo";
+import { ExamAnalyticsPanel } from "@/features/analytics/exam-analytics-panel";
+import type { ExamAnalytics } from "@/features/analytics/types";
 import { useDemo } from "@/features/demo/demo-provider";
 import { ApiError } from "@/lib/api/browser";
 
@@ -29,7 +33,7 @@ import {
 
 type RemoteState =
   | { status: "loading" }
-  | { status: "ready"; view: ExamStatisticsView }
+  | { status: "ready"; view: ExamStatisticsView; analytics: ExamAnalytics }
   | { status: "unavailable" }
   | { status: "error"; message: string };
 
@@ -42,11 +46,16 @@ export function ExamStatistics({ examId }: { examId: string }) {
   const load = useCallback(async () => {
     setRemote({ status: "loading" });
     try {
-      const [statistics, attempts] = await Promise.all([
+      const [statistics, attempts, analytics] = await Promise.all([
         getExamStatistics(examId),
         listExamAttempts(examId),
+        getExamAnalytics(examId),
       ]);
-      setRemote({ status: "ready", view: statisticsViewFromApi(statistics, attempts) });
+      setRemote({
+        status: "ready",
+        view: statisticsViewFromApi(statistics, attempts),
+        analytics,
+      });
     } catch (reason) {
       if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) {
         setRemote({ status: "unavailable" });
@@ -64,10 +73,18 @@ export function ExamStatistics({ examId }: { examId: string }) {
     if (demoMode) return;
     let active = true;
 
-    void Promise.all([getExamStatistics(examId), listExamAttempts(examId)])
-      .then(([statistics, attempts]) => {
+    void Promise.all([
+      getExamStatistics(examId),
+      listExamAttempts(examId),
+      getExamAnalytics(examId),
+    ])
+      .then(([statistics, attempts, analytics]) => {
         if (active) {
-          setRemote({ status: "ready", view: statisticsViewFromApi(statistics, attempts) });
+          setRemote({
+            status: "ready",
+            view: statisticsViewFromApi(statistics, attempts),
+            analytics,
+          });
         }
       })
       .catch((reason: unknown) => {
@@ -96,6 +113,7 @@ export function ExamStatistics({ examId }: { examId: string }) {
         examId={examId}
         examTitle={exam.title}
         view={statisticsViewFromDemoAttempts(exam.attempts)}
+        analytics={demoExamAnalytics(exam)}
       />
     );
   }
@@ -106,7 +124,14 @@ export function ExamStatistics({ examId }: { examId: string }) {
     return (
       <ErrorState examId={examId} examTitle={exam?.title} message={remote.message} onRetry={load} />
     );
-  return <StatisticsContent examId={examId} examTitle={exam?.title} view={remote.view} />;
+  return (
+    <StatisticsContent
+      examId={examId}
+      examTitle={exam?.title}
+      view={remote.view}
+      analytics={remote.analytics}
+    />
+  );
 }
 
 function PageShell({
@@ -135,10 +160,12 @@ function StatisticsContent({
   examId,
   examTitle,
   view,
+  analytics,
 }: {
   examId: string;
   examTitle?: string;
   view: ExamStatisticsView;
+  analytics: ExamAnalytics;
 }) {
   return (
     <PageShell examId={examId} examTitle={examTitle}>
@@ -156,8 +183,8 @@ function StatisticsContent({
             Exam statistics
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Deterministic aggregates from your completed mock attempts. Mastery, skills, timing,
-            and error analysis unlock as real evaluation data accumulates.
+            Blueprint-weighted readiness, skill mastery, evidence confidence, and the next mock
+            configuration — recalculated from evaluated attempts.
           </p>
         </div>
         <Link
@@ -167,6 +194,8 @@ function StatisticsContent({
           <Play size={15} fill="currentColor" /> Run another mock
         </Link>
       </header>
+
+      <ExamAnalyticsPanel profile={analytics} />
 
       <section aria-label="Attempt aggregates" className="mt-6 grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <Metric icon={History} label="Completed attempts" value={String(view.attemptCount)} />
@@ -204,7 +233,7 @@ function StatisticsContent({
         </div>
       )}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+      <div className="mt-6 grid gap-4">
         <section className="rounded-[14px] border border-line p-5 sm:p-6" aria-label="Score history">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -266,31 +295,6 @@ function StatisticsContent({
           ) : (
             <EmptyStats examId={examId} />
           )}
-        </section>
-        <section className="rounded-[14px] border border-line p-5 sm:p-6" aria-label="Analysis roadmap">
-          <h2 className="text-sm font-semibold">Analysis roadmap</h2>
-          <p className="mt-1 text-xs text-muted">
-            This page is ready for the real evaluation contract.
-          </p>
-          <ul className="mt-5 grid gap-3">
-            {[
-              "Blueprint part mastery",
-              "Skill evidence and confidence",
-              "Time allocation",
-              "Error types",
-              "Adaptive next mock",
-            ].map((item) => (
-              <li
-                key={item}
-                className="flex items-center justify-between rounded-[9px] bg-surface p-3 text-sm"
-              >
-                <span>{item}</span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
-                  Soon
-                </span>
-              </li>
-            ))}
-          </ul>
         </section>
       </div>
     </PageShell>

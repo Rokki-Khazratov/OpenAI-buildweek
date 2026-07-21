@@ -3,12 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/browser";
 import { useDemo } from "@/features/demo/demo-provider";
+import { getExamAnalytics } from "@/features/analytics/api";
+import type { ExamAnalytics } from "@/features/analytics/types";
 
 import type { AttemptSummaryDto, ExamStatisticsDto } from "./api";
 import { getExamStatistics, listExamAttempts } from "./api";
 import { ExamStatistics } from "./exam-statistics";
 
 vi.mock("@/features/demo/demo-provider", () => ({ useDemo: vi.fn() }));
+vi.mock("@/features/analytics/api", () => ({ getExamAnalytics: vi.fn() }));
 vi.mock("./api", () => ({
   getExamStatistics: vi.fn(),
   listExamAttempts: vi.fn(),
@@ -16,6 +19,21 @@ vi.mock("./api", () => ({
 
 const getStatisticsMock = vi.mocked(getExamStatistics);
 const listAttemptsMock = vi.mocked(listExamAttempts);
+const getAnalyticsMock = vi.mocked(getExamAnalytics);
+
+const emptyAnalytics: ExamAnalytics = {
+  model_version: "analytics.v1",
+  computed_at: "2026-07-21T10:00:00Z",
+  exam_id: "exam-1",
+  exam_title: "Exam",
+  attempt_ids: [],
+  constants: { recency_half_life_days: 30, coverage_scale: 3, readiness_uncertainty_penalty: 15 },
+  readiness: { index: null, raw_mastery: null, confidence: 0, coverage: 0, status: "no_data", pass_threshold: 50, explanation: "Complete a mock to create the first readiness signal." },
+  skills: [{ skill_id: "core", label: "Core knowledge", blueprint_weight: 1, mastery: null, confidence: 0, confidence_level: "low_evidence", evidence_count: 0, effective_evidence: 0, attempt_count: 0, trend: "insufficient_data", trend_delta: null, latest_observed_at: null }],
+  trajectory: [],
+  recommendations: [{ exam_id: "exam-1", action: "run_full_mock", title: "Complete a diagnostic mock", reason: "No evidence yet.", target_skill_ids: [], confidence: 0, priority: 1 }],
+  adaptive: { eligible: false, target_skill_ids: [], reason: "Complete a diagnostic mock first.", confidence_level: "low_evidence", recommended_difficulty: "matched" },
+};
 
 const zeroStatistics: ExamStatisticsDto = {
   exam_id: "exam-1",
@@ -45,6 +63,7 @@ function attempt(id: string, percentage: number): AttemptSummaryDto {
 function mockNormalResponse(statistics = zeroStatistics, attempts: AttemptSummaryDto[] = []) {
   getStatisticsMock.mockResolvedValue(statistics);
   listAttemptsMock.mockResolvedValue(attempts);
+  getAnalyticsMock.mockResolvedValue(emptyAnalytics);
 }
 
 afterEach(() => {
@@ -54,6 +73,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(useDemo).mockReturnValue({ exams: [], loading: false } as never);
+  getAnalyticsMock.mockResolvedValue(emptyAnalytics);
 });
 
 describe("ExamStatistics", () => {
@@ -75,7 +95,7 @@ describe("ExamStatistics", () => {
 
     expect(await screen.findByText("No results yet")).toBeInTheDocument();
     expect(screen.getByText("Completed attempts").parentElement?.parentElement).toHaveTextContent("0");
-    expect(screen.getAllByText("—")).toHaveLength(4);
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(4);
   });
 
   it("labels a single attempt as sparse data", async () => {
@@ -149,5 +169,6 @@ describe("ExamStatistics", () => {
     expect(await screen.findByText("Single attempt — early signal only")).toBeInTheDocument();
     expect(getStatisticsMock).not.toHaveBeenCalled();
     expect(listAttemptsMock).not.toHaveBeenCalled();
+    expect(getAnalyticsMock).not.toHaveBeenCalled();
   });
 });

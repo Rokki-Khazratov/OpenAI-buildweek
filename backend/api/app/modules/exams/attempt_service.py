@@ -33,6 +33,8 @@ from app.db.models.attempt import (
     QuestionEvaluation,
 )
 from app.db.models.blueprint import BlueprintStatus, ExamBlueprint
+from app.modules.analytics.model import MODEL_VERSION
+from app.modules.analytics.service import adaptive_context
 from app.modules.exams.retrieval import retrieve_exam_chunks
 from app.modules.exams.service import get_exam, get_owned_exam
 
@@ -125,7 +127,12 @@ async def latest_blueprint(session: AsyncSession, exam_id: UUID) -> ExamBlueprin
 
 
 async def generate_mock(
-    session: AsyncSession, owner_id: UUID, exam_id: UUID, settings: Settings | None = None
+    session: AsyncSession,
+    owner_id: UUID,
+    exam_id: UUID,
+    settings: Settings | None = None,
+    *,
+    mode: str = "full_exam",
 ) -> tuple[MockExam, list[MockQuestion]]:
     settings = settings or get_settings()
     exam = await get_owned_exam(session, owner_id, exam_id)
@@ -135,15 +142,30 @@ async def generate_mock(
     current_blueprint = await latest_blueprint(session, exam.id)
     if current_blueprint is not None and current_blueprint.status != BlueprintStatus.APPROVED:
         raise ValueError("Review and approve the latest blueprint before generating a mock")
+    if mode not in {"full_exam", "adaptive"}:
+        raise ValueError("Unsupported mock generation mode")
+    analytics_result = None
+    analytics_profile = None
+    target_skills: list[str] = []
+    if mode == "adaptive":
+        analytics_result, analytics_profile = await adaptive_context(session, owner_id, exam.id)
+        if not analytics_profile.adaptive.eligible:
+            raise ValueError("Complete a diagnostic mock before generating an adaptive mock")
+        target_skills = analytics_profile.adaptive.target_skill_ids
+    approved_sections = blueprint_record.content.get("sections", []) if blueprint_record else []
+    approved_section_skills = {
+        str(section.get("id")): [str(skill_id) for skill_id in section.get("skills", [])]
+        for section in approved_sections
+        if isinstance(section, dict) and section.get("id")
+    }
+    allowed_skills = {
+        skill_id for skills in approved_section_skills.values() for skill_id in skills
+    } or {str(skill_id) for section in exam.blueprint for skill_id in section.get("skills", [])}
     retrieval_query = " ".join(
         [exam.title, exam.description or "", json.dumps(exam.blueprint), json.dumps(exam.rules)]
     )
     chunks = await retrieve_exam_chunks(session, settings, exam.id, retrieval_query)
     if settings.vertex_configured and chunks:
-        prior_attempts = await list_exam_attempts(session, owner_id, exam.id)
-        weak_topics: list[str] = []
-        for prior_attempt in prior_attempts[:5]:
-            weak_topics.extend(str(item) for item in prior_attempt.result.get("weak_topics", []))
         source_chunks = [
             SourceChunkInput(
                 chunk_id=str(item.id),
@@ -167,8 +189,24 @@ async def generate_mock(
             },
             chunks=source_chunks,
             adaptation_context={
-                "target_skills": list(dict.fromkeys(weak_topics)),
-                "instruction": "Preserve the approved blueprint while emphasizing targets.",
+                "mode": mode,
+                "target_skills": target_skills,
+                "target_signals": [
+                    {
+                        "skill_id": item.skill_id,
+                        "mastery": item.mastery,
+                        "confidence": item.confidence,
+                        "trend": item.trend,
+                    }
+                    for item in analytics_result.skills
+                    if item.skill_id in target_skills
+                ]
+                if analytics_result
+                else [],
+                "instruction": (
+                    "Preserve every approved blueprint section and its points while "
+                    "emphasizing the target skills."
+                ),
             },
         )
         await session.commit()
@@ -179,6 +217,8 @@ async def generate_mock(
                 generated,
                 blueprint_sections=exam.blueprint,
                 allowed_chunk_ids={item.chunk_id for item in source_chunks},
+                allowed_skill_ids=allowed_skills or None,
+                target_skill_ids=set(target_skills),
             )
             retries = 0
             while errors and retries < settings.ai_validation_retries:
@@ -189,6 +229,8 @@ async def generate_mock(
                     generated,
                     blueprint_sections=exam.blueprint,
                     allowed_chunk_ids={item.chunk_id for item in source_chunks},
+                    allowed_skill_ids=allowed_skills or None,
+                    target_skill_ids=set(target_skills),
                 )
         except Exception as exc:
             raise AIServiceError(f"Mock generation failed: {str(exc)[:300]}") from exc
@@ -212,7 +254,21 @@ async def generate_mock(
                 "retry_count": retries,
                 "validation_status": "valid",
                 "blueprint_version": blueprint_record.version if blueprint_record else None,
-                "target_skills": list(dict.fromkeys(weak_topics)),
+                "generation_mode": mode,
+                "target_skills": target_skills,
+                "analytics_model_version": MODEL_VERSION if analytics_profile else None,
+                "analytics_computed_at": (
+                    analytics_profile.computed_at.isoformat() if analytics_profile else None
+                ),
+                "readiness_before": (
+                    analytics_profile.readiness.index if analytics_profile else None
+                ),
+                "adaptation_reason": (
+                    analytics_profile.adaptive.reason if analytics_profile else None
+                ),
+                "adaptation_confidence": (
+                    analytics_profile.adaptive.confidence_level if analytics_profile else None
+                ),
             },
         )
         session.add(mock)
@@ -262,6 +318,17 @@ async def generate_mock(
             "schema_version": "generated-mock.v2",
             "validation_status": "valid",
             "blueprint_version": blueprint_record.version if blueprint_record else None,
+            "generation_mode": mode,
+            "target_skills": target_skills,
+            "analytics_model_version": MODEL_VERSION if analytics_profile else None,
+            "analytics_computed_at": (
+                analytics_profile.computed_at.isoformat() if analytics_profile else None
+            ),
+            "readiness_before": (analytics_profile.readiness.index if analytics_profile else None),
+            "adaptation_reason": (analytics_profile.adaptive.reason if analytics_profile else None),
+            "adaptation_confidence": (
+                analytics_profile.adaptive.confidence_level if analytics_profile else None
+            ),
         },
     )
     session.add(mock)
@@ -272,9 +339,11 @@ async def generate_mock(
         count = int(section.get("questionCount", 1))
         section_points = int(section.get("points", count))
         points_by_question = distribute_points(section_points, count)
-        section_skills = [str(item) for item in section.get("skills", [])] or [
-            slug(str(section.get("title", "core-knowledge")))
-        ]
+        section_skills = (
+            approved_section_skills.get(str(section.get("id")), [])
+            or [str(item) for item in section.get("skills", [])]
+            or [slug(str(section.get("title", "core-knowledge")))]
+        )
         for index in range(count):
             points = points_by_question[index]
             question = MockQuestion(

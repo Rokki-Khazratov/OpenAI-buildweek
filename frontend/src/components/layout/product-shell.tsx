@@ -48,11 +48,6 @@ export function ProductShell({ children }: { children: ReactNode }) {
               >
                 <Icon size={18} strokeWidth={1.75} />
                 <span>{item.label}</span>
-                {item.soon && (
-                  <span className="ml-auto rounded-full border border-line bg-white px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted">
-                    Soon
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -103,7 +98,6 @@ export function ProductShell({ children }: { children: ReactNode }) {
                 return (
                   <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-3 rounded-[9px] px-3 text-sm hover:bg-surface">
                     <Icon size={18} /> {item.label}
-                    {item.soon && <span className="ml-auto text-[10px] text-muted">Soon</span>}
                   </Link>
                 );
               })}

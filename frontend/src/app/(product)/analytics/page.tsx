@@ -1,3 +1,5 @@
-import { ChartNoAxesCombined } from "lucide-react";
-import { FeaturePreview } from "@/components/feedback/feature-preview";
-export default function AnalyticsPage() { return <FeaturePreview eyebrow="DS worker" title="Analytics" description="Explainable patterns and next-step recommendations across your preparation history." icon={ChartNoAxesCombined} soon items={[{ title: "Pattern detection", text: "Find persistent skill combinations and context-dependent mistakes." }, { title: "Scenario analysis", text: "Estimate how timing and section strategy influence likely outcomes." }, { title: "Next action", text: "Recommend a mock configuration with evidence and confidence." }]} />; }
+import { AnalyticsOverviewScreen } from "@/features/analytics/analytics-overview";
+
+export default function AnalyticsPage() {
+  return <AnalyticsOverviewScreen view="analytics" />;
+}

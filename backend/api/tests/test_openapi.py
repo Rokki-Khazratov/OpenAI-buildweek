@@ -46,6 +46,8 @@ def test_main_crud_paths_are_documented(client: TestClient) -> None:
     assert "put" in schema["paths"]["/api/v1/attempts/{attempt_id}/responses/{question_id}"]
     assert "post" in schema["paths"]["/api/v1/attempts/{attempt_id}/submit"]
     assert "get" in schema["paths"]["/api/v1/exams/{exam_id}/statistics"]
+    assert "get" in schema["paths"]["/api/v1/exams/{exam_id}/analytics"]
+    assert "get" in schema["paths"]["/api/v1/analytics/overview"]
     assert set(schema["paths"]["/api/v1/exams/{exam_id}/publication"]) >= {
         "get",
         "put",

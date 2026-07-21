@@ -15,7 +15,6 @@ import {
   Wifi,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Brand } from "@/components/layout/brand";
@@ -42,9 +41,16 @@ type Question = {
 
 type DisplayResult = ExamAttempt & { evaluation?: ResultDto };
 
-export function ExamRun({ examId }: { examId: string }) {
+export function ExamRun({
+  examId,
+  generationMode = "full_exam",
+  requestedAttempt,
+}: {
+  examId: string;
+  generationMode?: "full_exam" | "adaptive";
+  requestedAttempt?: string;
+}) {
   const { exams, loading, addAttempt, refreshExamAttempts } = useDemo();
-  const searchParams = useSearchParams();
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const storedExam = exams.find((item) => item.id === examId);
   const [started, setStarted] = useState(false);
@@ -145,7 +151,6 @@ export function ExamRun({ examId }: { examId: string }) {
 
   useEffect(() => {
     if (demoMode) return;
-    const requestedAttempt = searchParams.get("attempt");
     const savedAttempt = window.localStorage.getItem(`examtwin.activeAttempt.${examId}`);
     const attemptToLoad = requestedAttempt ?? savedAttempt;
     if (!attemptToLoad) return;
@@ -154,7 +159,7 @@ export function ExamRun({ examId }: { examId: string }) {
       .catch(() =>
         !requestedAttempt && window.localStorage.removeItem(`examtwin.activeAttempt.${examId}`),
       );
-  }, [demoMode, examId, hydrateAttempt, searchParams]);
+  }, [demoMode, examId, hydrateAttempt, requestedAttempt]);
 
   useEffect(() => {
     if (!started || result || secondsLeft <= 0) return;
@@ -207,7 +212,7 @@ export function ExamRun({ examId }: { examId: string }) {
     setError(null);
     if (!demoMode) {
       try {
-        const mock = await generateMock(exam.id);
+        const mock = await generateMock(exam.id, generationMode);
         const attempt = await startAttempt(mock.id);
         window.localStorage.setItem(
           `examtwin.activeAttempt.${exam.id}`,
@@ -320,14 +325,15 @@ export function ExamRun({ examId }: { examId: string }) {
               </span>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                  Mock generation
+                  {generationMode === "adaptive" ? "Adaptive mock" : "Mock generation"}
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">
                   {exam.title}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  A fresh simulation will follow the verified blueprint,
-                  attached data, scenario, and rules.
+                  {generationMode === "adaptive"
+                    ? "A targeted simulation will preserve the verified blueprint while emphasizing the skills currently limiting readiness."
+                    : "A fresh simulation will follow the verified blueprint, attached data, scenario, and rules."}
                 </p>
               </div>
             </div>
@@ -338,8 +344,13 @@ export function ExamRun({ examId }: { examId: string }) {
               <Fact label="Points" value={String(exam.rules.totalPoints)} />
             </div>
             <div className="mt-7 rounded-[11px] bg-surface p-4">
-              <p className="text-sm font-semibold">Before you start</p>
+              <p className="text-sm font-semibold">
+                {generationMode === "adaptive" ? "How adaptation works" : "Before you start"}
+              </p>
               <ul className="mt-3 grid gap-2 text-xs leading-5 text-muted">
+                {generationMode === "adaptive" && (
+                  <li>Targets come from evaluated skill evidence; section weights and total points stay unchanged.</li>
+                )}
                 <li>Allowed materials: {exam.rules.allowedMaterials}</li>
                 <li>
                   Pass mark: {exam.rules.passPercentage}% · {exam.rules.penalty}
@@ -355,7 +366,11 @@ export function ExamRun({ examId }: { examId: string }) {
                 an official grade.
               </p>
               <Button onClick={begin} disabled={generating}>
-                {generating ? "Generating mock…" : "Generate and start"}
+                {generating
+                  ? "Generating mock…"
+                  : generationMode === "adaptive"
+                    ? "Generate adaptive mock"
+                    : "Generate and start"}
                 <ArrowRight size={16} />
               </Button>
             </div>
