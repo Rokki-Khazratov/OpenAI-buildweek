@@ -349,7 +349,7 @@ export default function ExamTwinLanding({ accent = "#c5f43f", grid = true, motio
               <a href="/about" className="uline" style={s("color:inherit")}>About us</a>
               <a href="#demo" className="uline" style={s("color:inherit")}>Log in</a>
             </div>
-            <a href="#cta" className="lift" style={s("display:inline-flex;align-items:center;gap:9px;padding:11px 20px;background:var(--ink);color:var(--paper);font-weight:600;font-size:15px;border-radius:11px")}>Start free <span style={s("color:var(--acid)")}>→</span></a>
+            <a href="https://khazratov.com" className="lift" style={s("display:inline-flex;align-items:center;gap:9px;padding:11px 20px;background:var(--ink);color:var(--paper);font-weight:600;font-size:15px;border-radius:11px")}>Start free <span style={s("color:var(--acid)")}>→</span></a>
           </nav>
         </header>
 
@@ -364,7 +364,7 @@ export default function ExamTwinLanding({ accent = "#c5f43f", grid = true, motio
               <h1 data-reveal data-d1 style={s("font-size:clamp(44px,6.6vw,86px);line-height:.94;letter-spacing:-.045em;font-weight:700;margin:0 0 26px;text-wrap:balance")}>Stop studying everything.<br /><span style={s("color:var(--violet)")}>Rehearse what matters next.</span></h1>
               <p data-reveal data-d2 style={s("font-size:clamp(17px,1.55vw,19px);line-height:1.55;color:var(--ink-soft);max-width:46ch;margin:0 0 32px;text-wrap:pretty")}>Upload past papers, the rubric and your notes. ExamTwin reconstructs the real exam and compiles the highest-value timed rehearsal for the time you have today.</p>
               <div data-reveal data-d3 style={s("display:flex;flex-wrap:wrap;gap:13px;margin-bottom:30px")}>
-                <a href="#cta" className="lift" style={s("display:inline-flex;align-items:center;gap:10px;padding:15px 26px;background:var(--ink);color:var(--paper);font-weight:600;font-size:16px;border-radius:13px")}>Build my exam twin <span style={s("color:var(--acid)")}>→</span></a>
+                <a href="https://khazratov.com" className="lift" style={s("display:inline-flex;align-items:center;gap:10px;padding:15px 26px;background:var(--ink);color:var(--paper);font-weight:600;font-size:16px;border-radius:13px")}>Build my exam twin <span style={s("color:var(--acid)")}>→</span></a>
                 <a href="#demo" className="lift-border" style={s("display:inline-flex;align-items:center;padding:15px 24px;background:#fff;border:1px solid var(--line-strong);color:var(--ink);font-weight:600;font-size:16px;border-radius:13px")}>See it compile</a>
               </div>
             </div>
@@ -611,7 +611,7 @@ export default function ExamTwinLanding({ accent = "#c5f43f", grid = true, motio
                 <div style={s("display:flex;align-items:center;gap:12px;font-size:16px;font-weight:500")}><span style={s("color:var(--violet)")}>✓</span> See exactly why the recommendation changed</div>
                 <div style={s("display:flex;align-items:center;gap:12px;font-size:16px;font-weight:500")}><span style={s("color:var(--violet)")}>✓</span> Move from a score to the next decision</div>
               </div>
-              <a href="#cta" className="lift" style={s("display:inline-flex;align-items:center;gap:10px;padding:14px 24px;background:var(--ink);color:var(--paper);font-weight:600;font-size:15.5px;border-radius:12px")}>Build my adaptive loop <span style={s("color:var(--acid)")}>→</span></a>
+              <a href="https://khazratov.com" className="lift" style={s("display:inline-flex;align-items:center;gap:10px;padding:14px 24px;background:var(--ink);color:var(--paper);font-weight:600;font-size:15.5px;border-radius:12px")}>Build my adaptive loop <span style={s("color:var(--acid)")}>→</span></a>
             </div>
 
             <div data-reveal data-d1 style={s("background:var(--win);color:var(--win-ink);border-radius:20px;box-shadow:var(--shadow-win);overflow:hidden")}>
@@ -810,7 +810,7 @@ export default function ExamTwinLanding({ accent = "#c5f43f", grid = true, motio
             <div style={s("display:inline-flex;align-items:center;gap:9px;background:rgba(18,22,10,.08);border:1px solid rgba(18,22,10,.16);border-radius:999px;padding:8px 16px;margin-bottom:30px")}><span>✦</span><span className="lbl" style={s("letter-spacing:.13em")}>Built around your real exam</span></div>
             <h2 style={s("font-size:clamp(44px,7vw,100px);line-height:.9;letter-spacing:-.045em;font-weight:700;margin-bottom:24px")}>Know what to practise next.</h2>
             <p style={s("font-size:clamp(17px,1.7vw,21px);line-height:1.5;opacity:.8;max-width:40ch;margin:0 auto 36px")}>Upload the material. Get one focused rehearsal with a reason behind it.</p>
-            <a href="#top" className="lift-final" style={s("display:inline-flex;align-items:center;gap:11px;background:var(--ink);color:var(--paper);font-weight:700;font-size:17px;padding:18px 34px;border-radius:14px")}>Build my exam twin <span style={s("color:var(--acid)")}>→</span></a>
+            <a href="https://khazratov.com" className="lift-final" style={s("display:inline-flex;align-items:center;gap:11px;background:var(--ink);color:var(--acid-ink);font-weight:700;font-size:17px;padding:18px 34px;border-radius:14px")}>Build my exam twin <span style={s("color:var(--acid)")}>→</span></a>
             <div className="lbl" style={s("letter-spacing:.1em;opacity:.55;margin-top:24px")}>No credit card · Start with your own materials</div>
           </div>
         </section>
