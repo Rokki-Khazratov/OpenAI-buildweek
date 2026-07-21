@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { apiRequest, readApiError } from "@/lib/auth/upstream";
+import { apiRequest, readApiError, type TokenPair } from "@/lib/auth/upstream";
+import { setSessionCookies } from "@/lib/auth/session";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { name?: string; email?: string; password?: string };
@@ -12,10 +13,20 @@ export async function POST(request: Request) {
   if (!upstream.ok) {
     return NextResponse.json({ error: await readApiError(upstream, "Unable to create account") }, { status: upstream.status });
   }
-  const loginUrl = new URL("/api/auth/login", request.url);
-  return fetch(loginUrl, {
+  const form = new URLSearchParams({ username: body.email ?? "", password: body.password ?? "" });
+  const login = await apiRequest("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: body.email, password: body.password }),
-    headers: { "Content-Type": "application/json", cookie: request.headers.get("cookie") ?? "" },
+    body: form,
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
+  if (!login.ok) {
+    return NextResponse.json(
+      { error: await readApiError(login, "Account created, but sign-in failed") },
+      { status: login.status },
+    );
+  }
+  const tokens = (await login.json()) as TokenPair;
+  const response = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  setSessionCookies(response, tokens);
+  return response;
 }
