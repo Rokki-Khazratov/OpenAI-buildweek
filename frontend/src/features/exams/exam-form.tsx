@@ -7,6 +7,7 @@ import {
   Check,
   FileText,
   Plus,
+  Save,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -194,7 +195,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
     ]);
   }
 
-  function buildInput(): ExamInput {
+  function buildInput(status?: Exam["status"]): ExamInput {
     const contextSources = demoMode &&
       pastedContext.trim() &&
       !sources.some((source) => source.id === "pasted-context")
@@ -211,7 +212,7 @@ export function ExamForm({ exam }: { exam?: Exam }) {
         : demoMode ? sources : [];
     return {
       subjectId: effectiveSubjectId,
-      title: title.trim(),
+      title: title.trim() || (status === "draft" ? "Untitled exam" : ""),
       description: description.trim(),
       examType,
       language,
@@ -228,19 +229,15 @@ export function ExamForm({ exam }: { exam?: Exam }) {
         allowedMaterials: allowedMaterials.trim(),
         gradingNotes: gradingNotes.trim(),
       },
+      status,
     };
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (step < steps.length - 1) {
-      setStep((current) => current + 1);
-      return;
-    }
-    if (!effectiveSubjectId || !title.trim()) return;
+  async function persist(status?: Exam["status"]) {
+    if (!effectiveSubjectId || (!title.trim() && status !== "draft")) return;
     setPending(true);
     setError(null);
-    const input = buildInput();
+    const input = buildInput(status);
     try {
       const saved = exam
         ? await updateExam(exam.id, input)
@@ -255,13 +252,26 @@ export function ExamForm({ exam }: { exam?: Exam }) {
           }
         }
       }
-      router.push(`/exams/${saved.id}?tab=data${uploadFailed ? "&upload=partial" : ""}`);
+      if (status === "draft") {
+        router.push(`/exams/${saved.id}`);
+      } else {
+        router.push(`/exams/${saved.id}?tab=data${uploadFailed ? "&upload=partial" : ""}`);
+      }
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Unable to save this exam.",
       );
       setPending(false);
     }
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (step < steps.length - 1) {
+      setStep((current) => current + 1);
+      return;
+    }
+    await persist();
   }
 
   return (
@@ -780,6 +790,15 @@ export function ExamForm({ exam }: { exam?: Exam }) {
                 <ArrowLeft size={15} /> Back
               </Button>
             )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void persist("draft")}
+              disabled={pending || !effectiveSubjectId}
+              title={!title.trim() ? "Saves with the temporary title “Untitled exam”" : undefined}
+            >
+              <Save size={15} /> {pending ? "Saving…" : "Save draft"}
+            </Button>
           </div>
           <Button
             type="submit"

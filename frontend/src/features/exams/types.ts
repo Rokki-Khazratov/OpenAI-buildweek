@@ -69,4 +69,4 @@ export type Exam = {
 export type ExamInput = Pick<
   Exam,
   "subjectId" | "title" | "description" | "examType" | "language" | "targetDate" | "pastedContext" | "sources" | "blueprint" | "rules" | "scenario"
->;
+> & { status?: ExamStatus };
