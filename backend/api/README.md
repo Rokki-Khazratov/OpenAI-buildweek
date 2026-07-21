@@ -10,9 +10,10 @@ uploads, durable background processing, and deterministic PDF/DOCX/TXT parsing a
 Embeddings, owned-exam vector retrieval, structured blueprint extraction, grounded mock generation,
 source citations, and rubric evaluation are implemented with Vertex AI and `gemini-3.5-flash`
 behind a provider-neutral AI interface. Authentication uses Google Application Default Credentials.
-Without Vertex configuration the deterministic fallback remains active. Personal weak-skill
-adaptation is implemented through the versioned `analytics.v1` engine; OCR and advanced cohort
-analytics remain deferred.
+Without Vertex configuration the deterministic fallback remains active. Personal adaptation uses
+`analytics.v2` and `adaptive.v2`, canonical observation facts, versioned snapshots, data-quality
+checks and shadow comparisons. Cohort analytics is aggregate-only, version-compatible and
+suppressed for small groups. OCR remains deferred.
 
 ## Implemented API
 
@@ -45,6 +46,9 @@ analytics remain deferred.
 - `GET /api/v1/exams/{exam_id}/statistics`
 - `GET /api/v1/exams/{exam_id}/analytics`
 - `GET /api/v1/analytics/overview`
+- `GET /api/v1/analytics/operations`
+- `POST /api/v1/exams/{exam_id}/analytics/rebuild`
+- `GET /api/v1/exams/{exam_id}/analytics/data-quality`
 - `PUT /api/v1/exams/{exam_id}/publication`
 - `DELETE /api/v1/exams/{exam_id}/publication`
 - `GET /api/v1/library/publications`
@@ -52,6 +56,8 @@ analytics remain deferred.
 - `POST /api/v1/library/publications/{publication_id}/clone`
 - `POST/GET /api/v1/classes/{class_id}/members`
 - `GET /api/v1/classes/{class_id}/dashboard`
+- `POST /api/v1/classes/{class_id}/analytics/events`
+- `GET /api/v1/classes/{class_id}/analytics/experiments`
 - `POST /api/v1/exams/{exam_id}/artifacts/uploads`
 - `POST /api/v1/artifacts/{artifact_id}/complete`
 - `GET /api/v1/exams/{exam_id}/artifacts`
@@ -102,10 +108,16 @@ node ../scripts/p1-artifact-smoke.mjs
 ```
 
 The full live Vertex smoke test covers upload, blueprint extraction and approval, mock generation,
-attempt submission, and detailed evaluation:
+attempt submission, detailed evaluation, the analytics snapshot and an adaptive follow-up:
 
 ```bash
 node ../scripts/vertex-sandbox-smoke.mjs
+```
+
+The idempotent normal-mode DS golden flow is:
+
+```bash
+node ../scripts/seed-ds-golden-flow.mjs
 ```
 
 For a rich local frontend workspace, run `node ../scripts/seed-local-demo.mjs`.

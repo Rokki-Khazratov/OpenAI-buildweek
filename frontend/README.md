@@ -10,6 +10,9 @@ toolchain for this application.
 - Exams own their context data, blueprint, generation scenario, rules, attempt history, and statistics.
 - Exam CRUD, the five-step creation flow, focused mock simulation, autosave, result archive,
   Library, Classes, Statistics, and personal Analytics are implemented.
+- Personal analytics displays `analytics.v2` evidence confidence, trends, timing disclosure and
+  `adaptive.v2` targets. Class analytics exposes aggregates only, suppresses small groups and never
+  renders student-level readiness or weaknesses.
 - Demo mode persists Subject, Exam, Class, Attempt, and representative DS evidence in browser storage.
 - Normal mode uses the authenticated BFF, FastAPI, PostgreSQL, object storage, worker, and optional
   Vertex generation/evaluation. The UI labels deterministic and Vertex-backed results explicitly.
