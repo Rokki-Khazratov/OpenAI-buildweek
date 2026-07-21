@@ -34,7 +34,7 @@ from app.db.models.attempt import (
 )
 from app.db.models.blueprint import BlueprintStatus, ExamBlueprint
 from app.modules.analytics.model import MODEL_VERSION
-from app.modules.analytics.service import adaptive_context
+from app.modules.analytics.service import adaptive_context, rebuild_exam_analytics
 from app.modules.exams.retrieval import retrieve_exam_chunks
 from app.modules.exams.service import get_exam, get_owned_exam
 
@@ -269,6 +269,18 @@ async def generate_mock(
                 "adaptation_confidence": (
                     analytics_profile.adaptive.confidence_level if analytics_profile else None
                 ),
+                "policy_version": (
+                    analytics_profile.adaptive.policy_version if analytics_profile else None
+                ),
+                "candidate_skills": (
+                    list(analytics_profile.adaptive.target_reasons) if analytics_profile else []
+                ),
+                "selection_reasons": (
+                    analytics_profile.adaptive.target_reasons if analytics_profile else {}
+                ),
+                "exploration_share": (
+                    analytics_profile.adaptive.exploration_share if analytics_profile else 0
+                ),
             },
         )
         session.add(mock)
@@ -328,6 +340,18 @@ async def generate_mock(
             "adaptation_reason": (analytics_profile.adaptive.reason if analytics_profile else None),
             "adaptation_confidence": (
                 analytics_profile.adaptive.confidence_level if analytics_profile else None
+            ),
+            "policy_version": (
+                analytics_profile.adaptive.policy_version if analytics_profile else None
+            ),
+            "candidate_skills": (
+                list(analytics_profile.adaptive.target_reasons) if analytics_profile else []
+            ),
+            "selection_reasons": (
+                analytics_profile.adaptive.target_reasons if analytics_profile else {}
+            ),
+            "exploration_share": (
+                analytics_profile.adaptive.exploration_share if analytics_profile else 0
             ),
         },
     )
@@ -822,6 +846,8 @@ async def submit_attempt(
             for item in question_results
         ],
     }
+    await session.flush()
+    await rebuild_exam_analytics(session, user_id, attempt.exam_id)
     await session.commit()
     await session.refresh(attempt)
     return attempt
