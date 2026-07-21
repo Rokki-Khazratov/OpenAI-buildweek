@@ -61,6 +61,30 @@ describe("ClassDashboard", () => {
     expect(document.body).not.toHaveTextContent("private feedback");
   });
 
+  it("hides every activity and readiness value while a cohort is suppressed", async () => {
+    vi.mocked(getClassDashboard).mockResolvedValue({
+      ...metrics,
+      suppressed: true,
+      suppression_reason: "At least 3 eligible learners with comparable evidence are required.",
+      active_learners: 0,
+      eligible_learners: 0,
+      total_attempts: 0,
+      median_readiness_index: null,
+      readiness_coverage: 0,
+      readiness_confidence_distribution: { low_evidence: 0, developing: 0, established: 0 },
+      low_evidence_percentage: null,
+      weak_skills: [],
+      recommended_action: null,
+    });
+
+    render(<ClassDashboard studyClass={studyClass} exams={[]} />);
+
+    expect(await screen.findByText("Cohort signal suppressed")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("Participants");
+    expect(document.body).not.toHaveTextContent("Readiness coverage");
+    expect(document.body).not.toHaveTextContent("Skill health");
+  });
+
   it("adds an existing account and refreshes dashboard metrics", async () => {
     vi.mocked(addClassMember).mockResolvedValue({ user_id: "new", display_name: "Mia", role: "member", leaderboard_opt_in: false, joined_at: "2026-07-20T10:00:00Z" });
     render(<ClassDashboard studyClass={studyClass} exams={[]} />);

@@ -9,6 +9,8 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.api.schemas.workspace import WorkspaceCreateRequest, WorkspaceUpdateRequest
 from app.db.models.audit import AuditEvent
+from app.db.models.classroom import ClassExam, ClassExamScope, ClassMember, Classroom
+from app.db.models.exam import Exam
 from app.db.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 
 
@@ -25,11 +27,72 @@ class WorkspacePage:
 
 
 def accessible_workspace_filter(user_id: UUID) -> ColumnElement[bool]:
-    """Build the membership-aware access predicate shared by read operations."""
+    """Build the Subject-shell predicate for direct or Class-derived access."""
     member_workspace_ids = select(WorkspaceMember.workspace_id).where(
         WorkspaceMember.user_id == user_id
     )
-    return or_(Workspace.owner_id == user_id, Workspace.id.in_(member_workspace_ids))
+    class_workspace_ids = (
+        select(Classroom.workspace_id)
+        .join(ClassMember, ClassMember.class_id == Classroom.id)
+        .where(ClassMember.user_id == user_id)
+    )
+    return or_(
+        Workspace.owner_id == user_id,
+        Workspace.id.in_(member_workspace_ids),
+        Workspace.id.in_(class_workspace_ids),
+    )
+
+
+def accessible_exam_filter(user_id: UUID) -> ColumnElement[bool]:
+    """Build the Exam predicate for direct, subject-wide, or selected Class access.
+
+    A Class grant is deliberately derived from its current scope rows instead of being
+    copied into ``WorkspaceMember``. This makes removal and scope edits take effect in
+    the same transaction without leaving a broad Subject grant behind.
+    """
+    owner_access = (
+        select(Workspace.id)
+        .where(
+            Workspace.id == Exam.workspace_id,
+            Workspace.owner_id == user_id,
+        )
+        .correlate(Exam)
+        .exists()
+    )
+    direct_member_access = (
+        select(WorkspaceMember.workspace_id)
+        .where(
+            WorkspaceMember.workspace_id == Exam.workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+        .correlate(Exam)
+        .exists()
+    )
+    subject_class_access = (
+        select(ClassMember.class_id)
+        .join(Classroom, Classroom.id == ClassMember.class_id)
+        .where(
+            ClassMember.user_id == user_id,
+            Classroom.workspace_id == Exam.workspace_id,
+            Classroom.exam_scope == ClassExamScope.SUBJECT,
+        )
+        .correlate(Exam)
+        .exists()
+    )
+    selected_exam_access = (
+        select(ClassMember.class_id)
+        .join(Classroom, Classroom.id == ClassMember.class_id)
+        .join(ClassExam, ClassExam.class_id == Classroom.id)
+        .where(
+            ClassMember.user_id == user_id,
+            Classroom.workspace_id == Exam.workspace_id,
+            Classroom.exam_scope == ClassExamScope.SELECTED_EXAMS,
+            ClassExam.exam_id == Exam.id,
+        )
+        .correlate(Exam)
+        .exists()
+    )
+    return or_(owner_access, direct_member_access, subject_class_access, selected_exam_access)
 
 
 async def create_workspace(

@@ -11,7 +11,7 @@ from app.db.models.audit import AuditEvent
 from app.db.models.exam import Exam, ExamStatus
 from app.db.models.workspace import Workspace
 from app.modules.workspaces.service import (
-    accessible_workspace_filter,
+    accessible_exam_filter,
     get_owned_workspace,
     get_workspace,
 )
@@ -66,10 +66,13 @@ async def list_exams(
 ) -> ExamPage:
     await get_workspace(session, user_id, subject_id)
     predicate = Exam.workspace_id == subject_id
-    total = await session.scalar(select(func.count()).select_from(Exam).where(predicate))
+    access_predicate = accessible_exam_filter(user_id)
+    total = await session.scalar(
+        select(func.count()).select_from(Exam).where(predicate, access_predicate)
+    )
     result = await session.scalars(
         select(Exam)
-        .where(predicate)
+        .where(predicate, access_predicate)
         .order_by(Exam.created_at.desc(), Exam.id)
         .limit(limit)
         .offset(offset)
@@ -81,7 +84,7 @@ async def get_exam(session: AsyncSession, user_id: UUID, exam_id: UUID) -> Exam:
     exam = await session.scalar(
         select(Exam)
         .join(Workspace, Workspace.id == Exam.workspace_id)
-        .where(Exam.id == exam_id, accessible_workspace_filter(user_id))
+        .where(Exam.id == exam_id, accessible_exam_filter(user_id))
     )
     if exam is None:
         raise ExamNotFoundError

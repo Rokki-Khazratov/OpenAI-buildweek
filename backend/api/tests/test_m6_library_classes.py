@@ -126,6 +126,9 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     _, second_learner_id = await register_and_login(
         client, "second.learner@example.com", "Student Noor"
     )
+    _, third_learner_id = await register_and_login(
+        client, "third.learner@example.com", "Student Mika"
+    )
     subject_response = await client.post(
         "/api/v1/subjects",
         headers=owner_headers,
@@ -273,6 +276,12 @@ async def test_library_clone_membership_and_dashboard_are_safe(
         json={"email": "second.learner@example.com"},
     )
     assert second_added.status_code == 201, second_added.text
+    third_added = await client.post(
+        f"/api/v1/classes/{class_id}/members",
+        headers=owner_headers,
+        json={"email": "third.learner@example.com"},
+    )
+    assert third_added.status_code == 201, third_added.text
     duplicate = await client.post(
         f"/api/v1/classes/{class_id}/members",
         headers=owner_headers,
@@ -324,7 +333,12 @@ async def test_library_clone_membership_and_dashboard_are_safe(
         await session.flush()
         mock_id = mock.id
         question_id = question.id
-        for user_id, score in ((owner_id, 8), (learner_id, 4), (second_learner_id, 6)):
+        for user_id, score in (
+            (owner_id, 8),
+            (learner_id, 4),
+            (second_learner_id, 6),
+            (third_learner_id, 7),
+        ):
             attempt = Attempt(
                 mock_exam_id=mock.id,
                 exam_id=exam_id,
@@ -363,7 +377,7 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     metrics = dashboard.json()
     assert metrics["model_version"] == "analytics.v2"
     assert metrics["suppressed"] is False
-    assert metrics["member_count"] == 3
+    assert metrics["member_count"] == 4
     assert metrics["active_learners"] == 3
     assert metrics["eligible_learners"] == 3
     assert metrics["total_attempts"] == 3
@@ -498,3 +512,214 @@ async def test_library_clone_membership_and_dashboard_are_safe(
     assert operations.json()["observation_count"] == 2
     assert operations.json()["snapshot_count"] >= 1
     assert operations.json()["shadow_comparison_count"] >= 1
+
+
+async def test_selected_class_access_is_scoped_and_revocable(
+    m6_harness: tuple[AsyncClient, Database],
+) -> None:
+    client, _ = m6_harness
+    owner_headers, _ = await register_and_login(client, "scope-owner@example.com", "Owner")
+    learner_headers, learner_id = await register_and_login(
+        client, "scope-learner@example.com", "Learner"
+    )
+    subject = await client.post(
+        "/api/v1/subjects",
+        headers=owner_headers,
+        json={"title": "Scoped Algorithms", "course_code": "CS-SCOPE"},
+    )
+    assert subject.status_code == 201, subject.text
+    subject_id = subject.json()["id"]
+    selected = await client.post(
+        f"/api/v1/subjects/{subject_id}/exams",
+        headers=owner_headers,
+        json={"title": "Selected final", "language": "en"},
+    )
+    hidden = await client.post(
+        f"/api/v1/subjects/{subject_id}/exams",
+        headers=owner_headers,
+        json={"title": "Private midterm", "language": "en"},
+    )
+    assert selected.status_code == hidden.status_code == 201
+    selected_id = selected.json()["id"]
+    hidden_id = hidden.json()["id"]
+    selected_class = await client.post(
+        f"/api/v1/subjects/{subject_id}/classes",
+        headers=owner_headers,
+        json={
+            "name": "Final-only class",
+            "exam_scope": "selected_exams",
+            "exam_ids": [selected_id],
+        },
+    )
+    sibling_class = await client.post(
+        f"/api/v1/subjects/{subject_id}/classes",
+        headers=owner_headers,
+        json={"name": "Private sibling", "exam_scope": "subject"},
+    )
+    assert selected_class.status_code == sibling_class.status_code == 201
+    class_id = selected_class.json()["id"]
+    added = await client.post(
+        f"/api/v1/classes/{class_id}/members",
+        headers=owner_headers,
+        json={"email": "scope-learner@example.com"},
+    )
+    assert added.status_code == 201, added.text
+
+    learner_subject = await client.get(f"/api/v1/subjects/{subject_id}", headers=learner_headers)
+    assert learner_subject.status_code == 200
+    listed = await client.get(f"/api/v1/subjects/{subject_id}/exams", headers=learner_headers)
+    assert listed.status_code == 200, listed.text
+    assert [item["id"] for item in listed.json()["items"]] == [selected_id]
+    learner_selected = await client.get(f"/api/v1/exams/{selected_id}", headers=learner_headers)
+    learner_hidden = await client.get(f"/api/v1/exams/{hidden_id}", headers=learner_headers)
+    assert learner_selected.status_code == 200
+    assert learner_hidden.status_code == 404
+    visible_classes = await client.get(
+        f"/api/v1/subjects/{subject_id}/classes", headers=learner_headers
+    )
+    assert visible_classes.status_code == 200
+    assert [item["id"] for item in visible_classes.json()["items"]] == [class_id]
+    assert (
+        await client.get(f"/api/v1/classes/{sibling_class.json()['id']}", headers=learner_headers)
+    ).status_code == 404
+
+    removed = await client.delete(
+        f"/api/v1/classes/{class_id}/members/{learner_id}", headers=owner_headers
+    )
+    assert removed.status_code == 204
+    removed_subject = await client.get(f"/api/v1/subjects/{subject_id}", headers=learner_headers)
+    removed_exam = await client.get(f"/api/v1/exams/{selected_id}", headers=learner_headers)
+    assert removed_subject.status_code == 404
+    assert removed_exam.status_code == 404
+
+
+async def test_cohort_dashboard_suppresses_when_fewer_than_three_learners_are_eligible(
+    m6_harness: tuple[AsyncClient, Database],
+) -> None:
+    client, database = m6_harness
+    owner_headers, _ = await register_and_login(client, "privacy-owner@example.com", "Owner")
+    _, learner_id = await register_and_login(client, "privacy-learner@example.com", "Learner One")
+    for email, name in (
+        ("privacy-two@example.com", "Learner Two"),
+        ("privacy-three@example.com", "Learner Three"),
+    ):
+        await register_and_login(client, email, name)
+    subject = await client.post(
+        "/api/v1/subjects", headers=owner_headers, json={"title": "Privacy Subject"}
+    )
+    assert subject.status_code == 201
+    subject_id = subject.json()["id"]
+    exam = await client.post(
+        f"/api/v1/subjects/{subject_id}/exams",
+        headers=owner_headers,
+        json={
+            "title": "Privacy final",
+            "blueprint": [
+                {
+                    "id": "core",
+                    "title": "Core",
+                    "questionType": "Open response",
+                    "questionCount": 1,
+                    "durationMinutes": 20,
+                    "points": 10,
+                    "skills": ["reasoning"],
+                }
+            ],
+            "rules": {"durationMinutes": 20, "totalPoints": 10},
+        },
+    )
+    assert exam.status_code == 201, exam.text
+    exam_id = exam.json()["id"]
+    classroom = await client.post(
+        f"/api/v1/subjects/{subject_id}/classes",
+        headers=owner_headers,
+        json={"name": "Private cohort", "exam_scope": "selected_exams", "exam_ids": [exam_id]},
+    )
+    assert classroom.status_code == 201
+    class_id = classroom.json()["id"]
+    member_emails = (
+        "privacy-learner@example.com",
+        "privacy-two@example.com",
+        "privacy-three@example.com",
+    )
+    for email in member_emails:
+        added = await client.post(
+            f"/api/v1/classes/{class_id}/members",
+            headers=owner_headers,
+            json={"email": email},
+        )
+        assert added.status_code == 201
+
+    async with database.session() as session, session.begin():
+        mock = MockExam(
+            exam_id=exam_id,
+            generator="test",
+            title="Privacy fixture",
+            instructions="",
+            duration_minutes=20,
+            max_score=10,
+            generation_metadata={},
+        )
+        session.add(mock)
+        await session.flush()
+        question = MockQuestion(
+            mock_exam_id=mock.id,
+            section_id="core",
+            position=1,
+            question_type="open",
+            prompt="Explain core reasoning.",
+            points=10,
+            answer_key="private key",
+            citations=[],
+            skill_ids=["reasoning"],
+            difficulty="matched",
+            grading_mode="rubric",
+            rubric={},
+        )
+        session.add(question)
+        await session.flush()
+        attempt = Attempt(
+            mock_exam_id=mock.id,
+            exam_id=exam_id,
+            user_id=learner_id,
+            status=AttemptStatus.EVALUATED,
+            submitted_at=datetime.now(UTC),
+            duration_seconds=600,
+            score=4,
+            max_score=10,
+            result={"feedback": "private learner feedback"},
+        )
+        session.add(attempt)
+        await session.flush()
+        session.add(
+            QuestionEvaluation(
+                attempt_id=attempt.id,
+                question_id=question.id,
+                strategy="deterministic",
+                awarded_points=4,
+                max_points=10,
+                dimension_scores=[],
+                answer_evidence=["private answer"],
+                source_evidence=[],
+                feedback={"improvement": "private coaching"},
+                confidence=1,
+                flags=[],
+                evaluator_metadata={},
+            )
+        )
+
+    suppressed = await client.get(
+        f"/api/v1/classes/{class_id}/dashboard?exam_id={exam_id}", headers=owner_headers
+    )
+    assert suppressed.status_code == 200, suppressed.text
+    payload = suppressed.json()
+    assert payload["suppressed"] is True
+    assert payload["active_learners"] == 0
+    assert payload["eligible_learners"] == 0
+    assert payload["total_attempts"] == 0
+    assert payload["median_readiness_index"] is None
+    assert payload["weak_skills"] == []
+    assert payload["recommended_action"] is None
+    assert "eligible learners" in payload["suppression_reason"].casefold()
+    for private_value in ("private", "feedback", "answer", "coaching"):
+        assert private_value not in suppressed.text.casefold()
