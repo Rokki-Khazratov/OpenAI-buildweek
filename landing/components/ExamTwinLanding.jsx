@@ -838,7 +838,7 @@ export default function ExamTwinLanding({ accent = "#c5f43f", grid = true, motio
               <div style={s("display:flex;flex-direction:column;gap:12px;font-size:15px;color:var(--win-muted)")}>
                 <a href="/about" style={s("color:inherit")} className="uline">Our story</a>
                 <a href="#cta" style={s("color:inherit")} className="uline">Feedback</a>
-                <a href="#top" style={s("color:inherit")} className="uline">GitHub</a>
+                <a href="https://github.com/Rokki-Khazratov/OpenAI-buildweek/" target="_blank" rel="noreferrer" style={s("color:inherit")} className="uline">GitHub</a>
               </div>
             </div>
           </div>
