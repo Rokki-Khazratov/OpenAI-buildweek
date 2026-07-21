@@ -64,6 +64,21 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build
 
+  production-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production Compose contract
+        run: |
+          cp .env.production.example /tmp/examtwin-production.env
+          sed -i 's/replace-with-a-long-random-password/ci-postgres-password/' /tmp/examtwin-production.env
+          sed -i 's/replace-with-a-minimum-3-character-access-key/minio-ci/' /tmp/examtwin-production.env
+          sed -i 's/replace-with-a-long-random-secret/ci-minio-secret-password/' /tmp/examtwin-production.env
+          sed -i 's/replace-with-at-least-32-random-characters/ci-jwt-secret-that-is-longer-than-32-characters/' /tmp/examtwin-production.env
+          sed -i 's#https://app.example.com#https://ci.example.com#' /tmp/examtwin-production.env
+          sed -i 's#https://files.example.com#https://files-ci.example.com#' /tmp/examtwin-production.env
+          docker compose --env-file /tmp/examtwin-production.env -f docker-compose.production.yml config --quiet
+
   p0-e2e-smoke:
     runs-on: ubuntu-latest
     services:

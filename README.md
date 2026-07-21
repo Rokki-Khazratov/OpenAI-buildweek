@@ -184,7 +184,7 @@ files → object storage → worker → parsing/chunking → embeddings/retrieva
 
 ### Prerequisites
 
-- Node.js 20 or newer
+- Node.js ^20.19.0 or >=22.12.0
 - npm
 - Python 3.11–3.13
 - Docker with Docker Compose
@@ -213,7 +213,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 cp .env.example .env
-docker compose -f compose.yaml up -d postgres redis
+docker compose -f compose.yaml up -d
 alembic upgrade head
 uvicorn app.main:app --app-dir api --reload --port 8010
 ```

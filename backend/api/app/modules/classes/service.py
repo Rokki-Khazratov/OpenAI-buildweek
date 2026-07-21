@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from statistics import median
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.classroom import (
@@ -28,11 +28,9 @@ from app.db.models.classroom import (
 )
 from app.db.models.exam import Exam
 from app.db.models.user import User
-from app.db.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from app.modules.analytics.model import MODEL_VERSION
 from app.modules.analytics.service import exam_analytics
 from app.modules.workspaces.service import (
-    accessible_workspace_filter,
     get_owned_workspace,
     get_workspace,
 )
@@ -148,11 +146,18 @@ async def list_classes(
     offset: int,
 ) -> ClassPage:
     await get_workspace(session, user_id, subject_id)
+    membership = select(ClassMember.class_id).where(
+        ClassMember.class_id == Classroom.id,
+        ClassMember.user_id == user_id,
+    )
     predicate = Classroom.workspace_id == subject_id
-    total = await session.scalar(select(func.count()).select_from(Classroom).where(predicate))
+    access_predicate = or_(Classroom.owner_id == user_id, membership.exists())
+    total = await session.scalar(
+        select(func.count()).select_from(Classroom).where(predicate, access_predicate)
+    )
     result = await session.scalars(
         select(Classroom)
-        .where(predicate)
+        .where(predicate, access_predicate)
         .order_by(Classroom.created_at.desc(), Classroom.id)
         .limit(limit)
         .offset(offset)
@@ -165,10 +170,15 @@ async def list_classes(
 
 
 async def get_class(session: AsyncSession, user_id: UUID, class_id: UUID) -> ClassRecord:
+    membership = select(ClassMember.class_id).where(
+        ClassMember.class_id == Classroom.id,
+        ClassMember.user_id == user_id,
+    )
     classroom = await session.scalar(
-        select(Classroom)
-        .join(Workspace, Workspace.id == Classroom.workspace_id)
-        .where(Classroom.id == class_id, accessible_workspace_filter(user_id))
+        select(Classroom).where(
+            Classroom.id == class_id,
+            or_(Classroom.owner_id == user_id, membership.exists()),
+        )
     )
     if classroom is None:
         raise ClassNotFoundError
@@ -267,17 +277,6 @@ async def add_class_member(
         raise ClassMemberConflictError("This participant is already in the class")
     member = ClassMember(class_id=class_id, user_id=user.id, role=ClassMemberRole.MEMBER)
     session.add(member)
-    workspace_member = await session.get(
-        WorkspaceMember, {"workspace_id": classroom.workspace_id, "user_id": user.id}
-    )
-    if workspace_member is None:
-        session.add(
-            WorkspaceMember(
-                workspace_id=classroom.workspace_id,
-                user_id=user.id,
-                role=WorkspaceRole.MEMBER,
-            )
-        )
     session.add(
         AuditEvent(
             actor_id=owner_id,
@@ -352,40 +351,20 @@ async def class_dashboard(
             )
         ).all()
     )
-    attempts: list[Attempt] = []
-    if member_ids and scoped_ids:
-        attempts = list(
-            (
-                await session.scalars(
-                    select(Attempt)
-                    .where(
-                        Attempt.user_id.in_(member_ids),
-                        Attempt.exam_id.in_(scoped_ids),
-                        Attempt.status == AttemptStatus.EVALUATED,
-                    )
-                    .order_by(Attempt.submitted_at.desc(), Attempt.id)
-                )
-            ).all()
-        )
-
-    active_ids = {item.user_id for item in attempts}
-    suppression_reason: str | None = None
-    if len(member_ids) < COHORT_PRIVACY_THRESHOLD:
-        suppression_reason = f"At least {COHORT_PRIVACY_THRESHOLD} class members are required."
-    elif len(scoped_ids) != 1:
-        suppression_reason = "Select one exam so blueprint and taxonomy versions remain comparable."
-    if suppression_reason:
+    if len(scoped_ids) != 1:
         return ClassDashboardResponse(
             class_id=class_id,
             exam_id=exam_id,
             model_version=MODEL_VERSION,
             privacy_threshold=COHORT_PRIVACY_THRESHOLD,
             suppressed=True,
-            suppression_reason=suppression_reason,
+            suppression_reason=(
+                "Select one exam so blueprint and taxonomy versions remain comparable."
+            ),
             member_count=len(member_ids),
-            active_learners=len(active_ids),
+            active_learners=0,
             eligible_learners=0,
-            total_attempts=len(attempts),
+            total_attempts=0,
             median_readiness_index=None,
             readiness_coverage=0,
             readiness_confidence_distribution={
@@ -398,13 +377,68 @@ async def class_dashboard(
             recommended_action=None,
         )
 
+    cohort_member_ids = list(
+        (
+            await session.scalars(
+                select(ClassMember.user_id)
+                .where(
+                    ClassMember.class_id == class_id,
+                    ClassMember.role == ClassMemberRole.MEMBER,
+                )
+                .order_by(ClassMember.user_id)
+            )
+        ).all()
+    )
+    attempts: list[Attempt] = []
+    if cohort_member_ids:
+        attempts = list(
+            (
+                await session.scalars(
+                    select(Attempt)
+                    .where(
+                        Attempt.user_id.in_(cohort_member_ids),
+                        Attempt.exam_id == scoped_ids[0],
+                        Attempt.status == AttemptStatus.EVALUATED,
+                    )
+                    .order_by(Attempt.submitted_at.desc(), Attempt.id)
+                )
+            ).all()
+        )
+
+    active_ids = {item.user_id for item in attempts}
     selected_exam_id = scoped_ids[0]
     profiles = [
         await exam_analytics(session, member_id, selected_exam_id)
-        for member_id in member_ids
+        for member_id in cohort_member_ids
         if member_id in active_ids
     ]
     eligible = [item for item in profiles if item.readiness.index is not None]
+    if len(eligible) < COHORT_PRIVACY_THRESHOLD:
+        return ClassDashboardResponse(
+            class_id=class_id,
+            exam_id=exam_id,
+            model_version=MODEL_VERSION,
+            privacy_threshold=COHORT_PRIVACY_THRESHOLD,
+            suppressed=True,
+            suppression_reason=(
+                f"At least {COHORT_PRIVACY_THRESHOLD} eligible learners with comparable "
+                "evidence are required."
+            ),
+            member_count=len(member_ids),
+            active_learners=0,
+            eligible_learners=0,
+            total_attempts=0,
+            median_readiness_index=None,
+            readiness_coverage=0,
+            readiness_confidence_distribution={
+                "low_evidence": 0,
+                "developing": 0,
+                "established": 0,
+            },
+            low_evidence_percentage=None,
+            weak_skills=[],
+            recommended_action=None,
+        )
     readiness_values = [
         item.readiness.index for item in eligible if item.readiness.index is not None
     ]
@@ -469,7 +503,7 @@ async def class_dashboard(
         median_readiness_index=round(float(median(readiness_values)), 1)
         if readiness_values
         else None,
-        readiness_coverage=round(len(eligible) / max(1, len(member_ids)), 2),
+        readiness_coverage=round(len(eligible) / max(1, len(cohort_member_ids)), 2),
         readiness_confidence_distribution=confidence_distribution,
         low_evidence_percentage=round(100 * low_evidence / len(eligible), 1) if eligible else None,
         weak_skills=weak_skills,
